@@ -263,7 +263,7 @@ include __DIR__ . '/includes/header.php';
                 <i class="fa-solid fa-magnifying-glass"></i>
             </span>
             <input type="text" name="search" value="<?= htmlspecialchars($search) ?>" 
-                   placeholder="ค้นหารหัสครุภัณฑ์ / ชื่อรายการ / สถานที่/ผู้รับผิดชอบ" 
+                   placeholder="ค้นหารหัสครุภัณฑ์ / ชื่อรายการ / สถานที่/ผู้รับผิดชอบ"
                    class="w-full bg-slate-50 border border-slate-200 pl-10 pr-4 py-2.5 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-slate-700">
         </div>
 
@@ -740,7 +740,7 @@ include __DIR__ . '/includes/header.php';
 
                 <div>
                     <label class="block text-slate-600 font-medium mb-1">สถานที่/ผู้รับผิดชอบ</label>
-                    <input type="text" name="location" list="loc-suggestions" placeholder="เช่น ห้องธุรการ หรือ ฉันทนา" 
+                    <input type="text" name="location" list="loc-suggestions" placeholder="เช่น ห้องธุรการ หรือ ฉันทนา"
                            class="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500">
                     <datalist id="loc-suggestions">
                         <?php foreach ($locations as $l): ?>

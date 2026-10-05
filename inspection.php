@@ -1291,7 +1291,7 @@ include __DIR__ . '/includes/header.php';
             <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label class="block text-slate-600 font-medium mb-1">สถานที่/ผู้รับผิดชอบ</label>
-                    <input type="text" name="location" list="loc-list" placeholder="เช่น ห้องธุรการ หรือ ฉันทนา" 
+                    <input type="text" name="location" list="loc-list" placeholder="เช่น ห้องธุรการ หรือ ฉันทนา"
                            class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500">
                     <datalist id="loc-list">
                         <?php foreach ($locations as $l): ?>
