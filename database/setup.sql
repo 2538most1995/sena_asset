@@ -6,7 +6,8 @@ CREATE TABLE IF NOT EXISTS asset_categories (
     id INT AUTO_INCREMENT PRIMARY KEY,
     category_name VARCHAR(255) NOT NULL,
     category_code VARCHAR(50) NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_category_name (category_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Table: inspection_items (บัญชีรายการตรวจสอบครุภัณฑ์ประจำปี)
@@ -23,8 +24,20 @@ CREATE TABLE IF NOT EXISTS inspection_items (
     status_unused TINYINT(1) DEFAULT 0 COMMENT 'ไม่ใช้',
     remarks TEXT NULL COMMENT 'หมายเหตุ',
     fiscal_year INT DEFAULT 2568,
+    is_overlap TINYINT(1) DEFAULT 0,
+    category VARCHAR(255) NULL,
+    location VARCHAR(255) NULL,
+    inspector VARCHAR(100) NULL,
+    price DECIMAL(15,2) NULL,
+    image_url VARCHAR(500) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    source_file VARCHAR(255) NULL,
+    source_sheet VARCHAR(255) NULL,
+    source_row INT NULL,
+    source_key VARCHAR(500) NULL,
+    UNIQUE KEY uq_source_key (source_key(191)),
+    INDEX idx_year_number (fiscal_year, item_number),
     INDEX idx_asset_code (asset_code),
     INDEX idx_asset_id_code (asset_id_code),
     INDEX idx_fiscal_year (fiscal_year)
@@ -48,8 +61,15 @@ CREATE TABLE IF NOT EXISTS equipment_registry (
     remarks TEXT NULL COMMENT 'หมายเหตุ',
     acquisition_date DATE NULL,
     status ENUM('active','damaged','degraded','disposed','unused') DEFAULT 'active',
+    image_url VARCHAR(500) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    source_file VARCHAR(255) NULL,
+    source_sheet VARCHAR(255) NULL,
+    source_row INT NULL,
+    source_key VARCHAR(500) NULL,
+    UNIQUE KEY uq_source_key (source_key(191)),
+    INDEX idx_category_id (category, id),
     INDEX idx_equipment_code (equipment_code),
     INDEX idx_status (status),
     INDEX idx_category (category)
@@ -68,4 +88,3 @@ CREATE TABLE IF NOT EXISTS users (
     INDEX idx_username (username),
     INDEX idx_role (role)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-

@@ -2,6 +2,8 @@
 // api/search.php - Fast JSON search endpoint for global search
 header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/auth.php';
+if (!is_logged_in()) { http_response_code(401); echo json_encode(['results'=>[]]); exit; }
 
 $q = trim($_GET['q'] ?? '');
 if (mb_strlen($q) < 1) {

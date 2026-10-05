@@ -97,16 +97,15 @@ try {
         throw new \Exception("Database not connected");
     }
 } catch (\Throwable $e) {
-    // Fallback defaults matching dataset
-    $total_items = 603;
-    $usable_items = 495;
-    $damaged_items = 19;
-    $degraded_items = 93;
+    $total_items = 0;
+    $usable_items = 0;
+    $damaged_items = 0;
+    $degraded_items = 0;
     $lost_items = 0;
     $unused_items = 0;
-    $overlap_items = 4;
-    $checked_items = 582;
-    $pending_items = 21;
+    $overlap_items = 0;
+    $checked_items = 0;
+    $pending_items = 0;
 }
 
 // คำนวณร้อยละ
@@ -132,11 +131,9 @@ $trend_data = [];
 try {
     if ($pdo) {
         // หมวดหมู่ครุภัณฑ์
-        $cat_sql = "SELECT COALESCE(NULLIF(category, ''), 'ไม่ระบุประเภท') as cat, COUNT(*) as cnt FROM inspection_items " . 
-                   ($selected_year !== 'all' ? "WHERE fiscal_year = ? " : "") . 
-                   "GROUP BY cat ORDER BY cnt DESC LIMIT 5";
+        $cat_sql = "SELECT COALESCE(NULLIF(category, ''), 'ไม่ระบุประเภท') as cat, COUNT(*) as cnt FROM equipment_registry GROUP BY cat ORDER BY cnt DESC LIMIT 5";
         $cat_stmt = $pdo->prepare($cat_sql);
-        $cat_stmt->execute($selected_year !== 'all' ? [(int)$selected_year] : []);
+        $cat_stmt->execute();
         while ($r = $cat_stmt->fetch(PDO::FETCH_ASSOC)) {
             $category_labels[] = $r['cat'];
             $category_data[] = (int)$r['cnt'];
@@ -162,18 +159,6 @@ try {
     }
 } catch (\Throwable $e) {}
 
-if (empty($category_labels)) {
-    $category_labels = ['คอมพิวเตอร์', 'โต๊ะ/เก้าอี้', 'ครุภัณฑ์สำนักงาน', 'ไฟฟ้า', 'อื่นๆ'];
-    $category_data = [245, 128, 112, 72, 46];
-}
-if (empty($location_labels)) {
-    $location_labels = ['สกร.อำเภอเสนา', 'ห้องธุรการ', 'ห้องประชุม', 'ห้องพัสดุ', 'ศกร.ตำบล'];
-    $location_data = [238, 142, 96, 68, 59];
-}
-if (empty($trend_labels)) {
-    $trend_labels = ['ปี 2568'];
-    $trend_data = [603];
-}
 
 include __DIR__ . '/includes/header.php';
 ?>

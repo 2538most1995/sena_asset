@@ -146,6 +146,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $id = (int)($_POST['id'] ?? 0);
         $item_name = trim($_POST['item_name'] ?? '');
         $asset_code = trim($_POST['asset_code'] ?? '');
+        $asset_id_code = trim($_POST['asset_id_code'] ?? '');
         $category = trim($_POST['category'] ?? '');
         $location = trim($_POST['location'] ?? '');
         $price = (float)($_POST['price'] ?? 0);
@@ -163,11 +164,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         if ($id > 0 && $item_name !== '') {
             try {
                 if ($uploaded_img) {
-                    $stmt = $pdo->prepare("UPDATE inspection_items SET item_name = ?, asset_code = ?, category = ?, location = ?, price = ?, remarks = ?, image_url = ? WHERE id = ?");
-                    $stmt->execute([$item_name, $asset_code, $category, $location, $price, $remarks, $uploaded_img, $id]);
+                    $stmt = $pdo->prepare("UPDATE inspection_items SET item_name = ?, asset_code = ?, asset_id_code = ?, category = ?, location = ?, price = ?, remarks = ?, image_url = ? WHERE id = ?");
+                    $stmt->execute([$item_name, $asset_code, $asset_id_code, $category, $location, $price, $remarks, $uploaded_img, $id]);
                 } else {
-                    $stmt = $pdo->prepare("UPDATE inspection_items SET item_name = ?, asset_code = ?, category = ?, location = ?, price = ?, remarks = ? WHERE id = ?");
-                    $stmt->execute([$item_name, $asset_code, $category, $location, $price, $remarks, $id]);
+                    $stmt = $pdo->prepare("UPDATE inspection_items SET item_name = ?, asset_code = ?, asset_id_code = ?, category = ?, location = ?, price = ?, remarks = ? WHERE id = ?");
+                    $stmt->execute([$item_name, $asset_code, $asset_id_code, $category, $location, $price, $remarks, $id]);
                 }
                 $flash_msg = "อัปเดตรายละเอียดรายการตรวจเรียบร้อยแล้ว";
                 $flash_type = 'success';
@@ -249,19 +250,16 @@ try {
     $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     // Stats for CURRENT FISCAL YEAR
-    $stat_total = (int)$pdo->query("SELECT COUNT(*) FROM inspection_items WHERE fiscal_year = $year")->fetchColumn();
-    $stat_usable = (int)$pdo->query("SELECT COALESCE(SUM(status_usable),0) FROM inspection_items WHERE fiscal_year = $year")->fetchColumn();
-    $stat_damaged = (int)$pdo->query("SELECT COALESCE(SUM(status_damaged),0) FROM inspection_items WHERE fiscal_year = $year")->fetchColumn();
-    $stat_degraded = (int)$pdo->query("SELECT COALESCE(SUM(status_degraded),0) FROM inspection_items WHERE fiscal_year = $year")->fetchColumn();
-    $stat_lost = (int)$pdo->query("SELECT COALESCE(SUM(status_lost),0) FROM inspection_items WHERE fiscal_year = $year")->fetchColumn();
-    $stat_unused = (int)$pdo->query("SELECT COALESCE(SUM(status_unused),0) FROM inspection_items WHERE fiscal_year = $year")->fetchColumn();
-    $stat_overlap = (int)$pdo->query("SELECT COUNT(*) FROM inspection_items WHERE fiscal_year = $year AND is_overlap = 1")->fetchColumn();
-
-    $stat_checked = (int)$pdo->query("SELECT COUNT(*) FROM inspection_items WHERE fiscal_year = $year AND (status_usable = 1 OR status_damaged = 1 OR status_degraded = 1 OR status_lost = 1 OR status_unused = 1)")->fetchColumn();
+    $stats=$pdo->prepare("SELECT COUNT(*) total,COALESCE(SUM(status_usable),0) usable,COALESCE(SUM(status_damaged),0) damaged,COALESCE(SUM(status_degraded),0) degraded,COALESCE(SUM(status_lost),0) lost,COALESCE(SUM(status_unused),0) unused,COALESCE(SUM(is_overlap),0) overlap,COALESCE(SUM(status_usable=1 OR status_damaged=1 OR status_degraded=1 OR status_lost=1 OR status_unused=1),0) checked FROM inspection_items WHERE fiscal_year=?");
+    $stats->execute([$year]);$s=$stats->fetch(PDO::FETCH_ASSOC);
+    $stat_total=(int)$s['total'];$stat_usable=(int)$s['usable'];$stat_damaged=(int)$s['damaged'];
+    $stat_degraded=(int)$s['degraded'];$stat_lost=(int)$s['lost'];$stat_unused=(int)$s['unused'];
+    $stat_overlap=(int)$s['overlap'];$stat_checked=(int)$s['checked'];
     $stat_pending = max(0, $stat_total - $stat_checked);
 
     // Locations for dropdown
     $locations = $pdo->query("SELECT DISTINCT location FROM inspection_items WHERE location IS NOT NULL AND location != '' ORDER BY location ASC")->fetchAll(PDO::FETCH_COLUMN);
+    $category_options = $pdo->query("SELECT category_name FROM asset_categories ORDER BY category_name")->fetchAll(PDO::FETCH_COLUMN);
 
     // Distinct years in database
     $existing_years = $pdo->query("SELECT DISTINCT fiscal_year FROM inspection_items WHERE fiscal_year IS NOT NULL ORDER BY fiscal_year DESC")->fetchAll(PDO::FETCH_COLUMN);
@@ -1299,10 +1297,7 @@ include __DIR__ . '/includes/header.php';
                     <input type="text" name="category" list="cat-list" placeholder="เช่น ครุภัณฑ์สำนักงาน" 
                            class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500">
                     <datalist id="cat-list">
-                        <option value="ครุภัณฑ์สำนักงาน">
-                        <option value="ครุภัณฑ์คอมพิวเตอร์">
-                        <option value="ครุภัณฑ์โสตทัศนูปกรณ์">
-                        <option value="เฟอร์นิเจอร์">
+                        <?php foreach ($category_options ?? [] as $cat): ?><option value="<?= htmlspecialchars($cat) ?>"><?php endforeach; ?>
                     </datalist>
                 </div>
             </div>
@@ -1377,6 +1372,8 @@ include __DIR__ . '/includes/header.php';
                     <label class="block text-slate-600 font-medium mb-1">รหัสครุภัณฑ์</label>
                     <input type="text" name="asset_code" id="edit-ins-code" class="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl font-mono text-slate-800 focus:ring-2 focus:ring-indigo-500">
                 </div>
+                <div><label class="block text-slate-600 font-medium mb-1">หมวด</label><input type="text" name="category" id="edit-ins-category" list="cat-list" class="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-slate-800"></div>
+                <div><label class="block text-slate-600 font-medium mb-1">รหัสสินทรัพย์</label><input type="text" name="asset_id_code" id="edit-ins-asset-id" class="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-slate-800"></div>
                 <div>
                     <label class="block text-slate-600 font-medium mb-1">สถานที่ใช้งาน</label>
                     <input type="text" name="location" id="edit-ins-loc" class="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500">
@@ -1932,6 +1929,8 @@ function openEditInspectionModal(data) {
     document.getElementById('edit-ins-id').value = data.id;
     document.getElementById('edit-ins-name').value = data.item_name;
     document.getElementById('edit-ins-code').value = data.asset_code || '';
+    document.getElementById('edit-ins-category').value = data.category || '';
+    document.getElementById('edit-ins-asset-id').value = data.asset_id_code || '';
     document.getElementById('edit-ins-loc').value = data.location || '';
     document.getElementById('edit-ins-remarks').value = data.remarks || '';
     document.getElementById('edit-inspect-modal').classList.remove('hidden');

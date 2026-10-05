@@ -3,6 +3,9 @@
 // Authentication & Session Management
 
 if (session_status() === PHP_SESSION_NONE) {
+    ini_set('session.cookie_httponly', '1');
+    ini_set('session.cookie_samesite', 'Lax');
+    if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ini_set('session.cookie_secure', '1');
     session_start();
 }
 
@@ -23,6 +26,7 @@ function require_login() {
 }
 
 function login_user($user) {
+    session_regenerate_id(true);
     $_SESSION['user_id'] = $user['id'] ?? 1;
     $_SESSION['username'] = $user['username'] ?? 'admin';
     $fullname = $user['fullname'] ?? 'ผู้ใช้งาน';

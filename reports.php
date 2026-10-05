@@ -27,6 +27,11 @@ $year = (int)($_GET['year'] ?? 2568);
 $report_type = trim($_GET['type'] ?? '');
 $filter_status = trim($_GET['status'] ?? '');
 $filter_loc = trim($_GET['loc'] ?? '');
+$registry_count=(int)$pdo->query('SELECT COUNT(*) FROM equipment_registry')->fetchColumn();
+$stats_stmt=$pdo->prepare("SELECT COUNT(*) total,COALESCE(SUM(status_usable),0) usable,COALESCE(SUM(status_damaged),0) damaged,COALESCE(SUM(status_degraded),0) degraded,COALESCE(SUM(status_lost),0) lost,COALESCE(SUM(status_unused),0) unused FROM inspection_items WHERE fiscal_year=?");
+$stats_stmt->execute([$year]);$stats=$stats_stmt->fetch(PDO::FETCH_ASSOC);
+$yearly_stats=$pdo->query("SELECT fiscal_year,COALESCE(SUM(status_usable),0) usable,COALESCE(SUM(status_damaged),0) damaged,COALESCE(SUM(status_degraded),0) degraded,COALESCE(SUM(status_lost+status_unused),0) other FROM inspection_items GROUP BY fiscal_year ORDER BY fiscal_year")->fetchAll(PDO::FETCH_ASSOC);
+$pct=static fn($n)=>$stats['total']?number_format(100*$n/$stats['total'],1):'0.0';
 
 // Handle CSV/Excel export
 if (isset($_GET['export']) && $_GET['export'] === 'excel') {
@@ -74,6 +79,7 @@ if ($filter_status === 'usable') {
 } elseif ($filter_status === 'degraded') {
     $where[] = "status_degraded = 1";
 }
+if ($report_type === 'dispose') $where[] = '(status_lost=1 OR status_unused=1)';
 
 $where_sql = implode(' AND ', $where);
 
@@ -125,7 +131,7 @@ include __DIR__ . '/includes/header.php';
                     <option value="all" <?= $report_type === 'all' ? 'selected' : '' ?>>ทะเบียนครุภัณฑ์ทั้งหมด</option>
                     <option value="damaged" <?= $report_type === 'damaged' ? 'selected' : '' ?>>รายงานครุภัณฑ์ชำรุด</option>
                     <option value="degraded" <?= $report_type === 'degraded' ? 'selected' : '' ?>>รายงานครุภัณฑ์เสื่อมคุณภาพ</option>
-                    <option value="dispose" <?= $report_type === 'dispose' ? 'selected' : '' ?>>รายงานเสนอจำหน่าย</option>
+                    <option value="dispose" <?= $report_type === 'dispose' ? 'selected' : '' ?>>รายงานสูญไป/ไม่ใช้</option>
                 </select>
             </div>
 
@@ -181,7 +187,7 @@ include __DIR__ . '/includes/header.php';
             <div>
                 <p class="text-xs text-slate-500 font-medium">ทะเบียนครุภัณฑ์</p>
                 <div class="flex items-baseline gap-1 mt-0.5">
-                    <span class="text-2xl font-bold text-slate-800">603</span>
+                    <span class="text-2xl font-bold text-slate-800"><?= number_format($registry_count) ?></span>
                     <span class="text-xs text-slate-400">รายการ</span>
                 </div>
                 <p class="text-[10px] text-slate-400 mt-0.5">100% ของครุภัณฑ์ทั้งหมด</p>
@@ -199,10 +205,10 @@ include __DIR__ . '/includes/header.php';
             <div>
                 <p class="text-xs text-slate-500 font-medium">รายงานชำรุด</p>
                 <div class="flex items-baseline gap-1 mt-0.5">
-                    <span class="text-2xl font-bold text-slate-800">19</span>
+                    <span class="text-2xl font-bold text-slate-800"><?= number_format((int)$stats['damaged']) ?></span>
                     <span class="text-xs text-slate-400">รายการ</span>
                 </div>
-                <p class="text-[10px] text-rose-500 mt-0.5 font-medium">3.15% ของทั้งหมด</p>
+                <p class="text-[10px] text-rose-500 mt-0.5 font-medium"><?= $pct((int)$stats['damaged']) ?>% ของบัญชีตรวจปีนี้</p>
             </div>
         </div>
         <i class="fa-solid fa-chevron-right text-slate-300 text-xs"></i>
@@ -217,25 +223,25 @@ include __DIR__ . '/includes/header.php';
             <div>
                 <p class="text-xs text-slate-500 font-medium">รายงานเสื่อมคุณภาพ</p>
                 <div class="flex items-baseline gap-1 mt-0.5">
-                    <span class="text-2xl font-bold text-slate-800">93</span>
+                    <span class="text-2xl font-bold text-slate-800"><?= number_format((int)$stats['degraded']) ?></span>
                     <span class="text-xs text-slate-400">รายการ</span>
                 </div>
-                <p class="text-[10px] text-amber-500 mt-0.5 font-medium">15.42% ของทั้งหมด</p>
+                <p class="text-[10px] text-amber-500 mt-0.5 font-medium"><?= $pct((int)$stats['degraded']) ?>% ของบัญชีตรวจปีนี้</p>
             </div>
         </div>
         <i class="fa-solid fa-chevron-right text-slate-300 text-xs"></i>
     </a>
 
-    <!-- 4. เสนอจำหน่าย -->
+    <!-- 4. สูญไป/ไม่ใช้ -->
     <a href="reports.php?type=dispose" class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs flex items-center justify-between hover:shadow-md transition-all">
         <div class="flex items-center gap-3.5">
             <div class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl shadow-xs">
                 <i class="fa-regular fa-file-lines"></i>
             </div>
             <div>
-                <p class="text-xs text-slate-500 font-medium">เสนอจำหน่าย</p>
+                <p class="text-xs text-slate-500 font-medium">สูญไป/ไม่ใช้</p>
                 <div class="flex items-baseline gap-1 mt-0.5">
-                    <span class="text-2xl font-bold text-slate-800">12</span>
+                    <span class="text-2xl font-bold text-slate-800"><?= number_format((int)$stats['lost']+(int)$stats['unused']) ?></span>
                     <span class="text-xs text-slate-400">รายการ</span>
                 </div>
                 <p class="text-[10px] text-blue-500 mt-0.5 font-medium">1.99% ของทั้งหมด</p>
@@ -264,7 +270,7 @@ include __DIR__ . '/includes/header.php';
             <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-[#38bdf8]"></span> ปกติ</div>
             <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-[#ef4444]"></span> ชำรุด</div>
             <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-[#f59e0b]"></span> เสื่อมคุณภาพ</div>
-            <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-[#818cf8]"></span> เสนอจำหน่าย</div>
+            <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-[#818cf8]"></span> สูญไป/ไม่ใช้</div>
         </div>
 
         <div class="pt-3 h-60">
@@ -288,7 +294,7 @@ include __DIR__ . '/includes/header.php';
             <div class="relative w-40 h-40">
                 <canvas id="reportDonutChart"></canvas>
                 <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <span class="text-xl font-extrabold text-slate-800">603</span>
+                    <span class="text-xl font-extrabold text-slate-800"><?= number_format((int)$stats['total']) ?></span>
                     <span class="text-[10px] text-slate-400">รายการ</span>
                 </div>
             </div>
@@ -299,26 +305,26 @@ include __DIR__ . '/includes/header.php';
                         <span class="w-2.5 h-2.5 rounded-full bg-[#10b981]"></span>
                         <span class="text-slate-600">ใช้ได้</span>
                     </div>
-                    <span class="font-semibold text-slate-800">495 <span class="text-slate-400 font-normal">(82.09%)</span></span>
+                    <span class="font-semibold text-slate-800"><?= number_format((int)$stats['usable']) ?> <span class="text-slate-400 font-normal">(<?= $pct((int)$stats['usable']) ?>%)</span></span>
                 </div>
                 <div class="flex items-center justify-between py-0.5">
                     <div class="flex items-center gap-2">
                         <span class="w-2.5 h-2.5 rounded-full bg-[#ef4444]"></span>
                         <span class="text-slate-600">ชำรุด</span>
                     </div>
-                    <span class="font-semibold text-slate-800">19 <span class="text-slate-400 font-normal">(3.15%)</span></span>
+                    <span class="font-semibold text-slate-800"><?= number_format((int)$stats['damaged']) ?> <span class="text-slate-400 font-normal">(<?= $pct((int)$stats['damaged']) ?>%)</span></span>
                 </div>
                 <div class="flex items-center justify-between py-0.5">
                     <div class="flex items-center gap-2">
                         <span class="w-2.5 h-2.5 rounded-full bg-[#f59e0b]"></span>
                         <span class="text-slate-600">เสื่อมคุณภาพ</span>
                     </div>
-                    <span class="font-semibold text-slate-800">93 <span class="text-slate-400 font-normal">(15.42%)</span></span>
+                    <span class="font-semibold text-slate-800"><?= number_format((int)$stats['degraded']) ?> <span class="text-slate-400 font-normal">(<?= $pct((int)$stats['degraded']) ?>%)</span></span>
                 </div>
                 <div class="flex items-center justify-between py-0.5">
                     <div class="flex items-center gap-2">
                         <span class="w-2.5 h-2.5 rounded-full bg-[#818cf8]"></span>
-                        <span class="text-slate-600">เสนอจำหน่าย</span>
+                        <span class="text-slate-600">สูญไป/ไม่ใช้</span>
                     </div>
                     <span class="font-semibold text-slate-800">12 <span class="text-slate-400 font-normal">(1.99%)</span></span>
                 </div>
@@ -343,7 +349,7 @@ include __DIR__ . '/includes/header.php';
                     </div>
                 </div>
                 <div class="text-right flex-shrink-0">
-                    <span class="text-xs font-bold text-slate-800">603</span>
+                    <span class="text-xs font-bold text-slate-800"><?= number_format($registry_count) ?></span>
                     <p class="text-[9px] text-slate-400">รายการ ></p>
                 </div>
             </a>
@@ -357,7 +363,7 @@ include __DIR__ . '/includes/header.php';
                     </div>
                 </div>
                 <div class="text-right flex-shrink-0">
-                    <span class="text-xs font-bold text-rose-600">19</span>
+                    <span class="text-xs font-bold text-rose-600"><?= number_format((int)$stats['damaged']) ?></span>
                     <p class="text-[9px] text-slate-400">รายการ ></p>
                 </div>
             </a>
@@ -371,7 +377,7 @@ include __DIR__ . '/includes/header.php';
                     </div>
                 </div>
                 <div class="text-right flex-shrink-0">
-                    <span class="text-xs font-bold text-amber-600">93</span>
+                    <span class="text-xs font-bold text-amber-600"><?= number_format((int)$stats['degraded']) ?></span>
                     <p class="text-[9px] text-slate-400">รายการ ></p>
                 </div>
             </a>
@@ -380,12 +386,12 @@ include __DIR__ . '/includes/header.php';
                 <div class="flex items-start gap-2.5">
                     <span class="w-6 h-6 rounded-lg bg-indigo-500 text-white font-bold text-xs flex items-center justify-center flex-shrink-0 mt-0.5">4</span>
                     <div>
-                        <h4 class="text-xs font-semibold text-slate-800 group-hover:text-indigo-600 transition-colors">รายการเสนอจำหน่าย</h4>
-                        <p class="text-[10px] text-slate-400">ครุภัณฑ์ที่เสนอจำหน่ายตัดจากบัญชี</p>
+                        <h4 class="text-xs font-semibold text-slate-800 group-hover:text-indigo-600 transition-colors">รายการสูญไป/ไม่ใช้</h4>
+                        <p class="text-[10px] text-slate-400">ครุภัณฑ์ที่สูญไป/ไม่ใช้ตัดจากบัญชี</p>
                     </div>
                 </div>
                 <div class="text-right flex-shrink-0">
-                    <span class="text-xs font-bold text-indigo-600">12</span>
+                    <span class="text-xs font-bold text-indigo-600"><?= number_format((int)$stats['lost']+(int)$stats['unused']) ?></span>
                     <p class="text-[9px] text-slate-400">รายการ ></p>
                 </div>
             </a>
@@ -447,7 +453,7 @@ include __DIR__ . '/includes/header.php';
                 </div>
                 <h2 class="text-lg font-bold text-slate-900 leading-tight"><?= htmlspecialchars($settings['org_name'] ?? 'สำนักงานส่งเสริมการเรียนรู้ระดับอำเภอเสนา') ?></h2>
                 <h3 class="text-base font-semibold text-slate-800">
-                    <?= $report_type === 'damaged' ? 'รายงานครุภัณฑ์ชำรุด' : ($report_type === 'degraded' ? 'รายงานครุภัณฑ์เสื่อมคุณภาพ' : ($report_type === 'dispose' ? 'รายงานครุภัณฑ์เสนอจำหน่าย' : 'รายงานทะเบียนครุภัณฑ์ทั้งหมด')) ?>
+                    <?= $report_type === 'damaged' ? 'รายงานครุภัณฑ์ชำรุด' : ($report_type === 'degraded' ? 'รายงานครุภัณฑ์เสื่อมคุณภาพ' : ($report_type === 'dispose' ? 'รายงานครุภัณฑ์สูญไป/ไม่ใช้' : 'รายงานทะเบียนครุภัณฑ์ทั้งหมด')) ?>
                 </h3>
                 <p class="text-xs text-slate-600">ประจำปีงบประมาณ พ.ศ. <?= $year ?></p>
                 <p class="text-[11px] text-slate-500 font-light">ข้อมูล ณ วันที่ <?= date('j') ?> <?= ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][date('n')-1] ?> <?= (date('Y') + 543) ?></p>
@@ -529,29 +535,29 @@ document.addEventListener('DOMContentLoaded', function() {
     new Chart(ctxYear, {
         type: 'bar',
         data: {
-            labels: ['ปี 2565', 'ปี 2566', 'ปี 2567'],
+            labels: <?= json_encode(array_map(fn($r)=>'ปี '.$r['fiscal_year'],$yearly_stats),JSON_UNESCAPED_UNICODE) ?>,
             datasets: [
                 {
                     label: 'ปกติ',
-                    data: [420, 508, 495],
+                    data: <?= json_encode(array_map(fn($r)=>(int)$r['usable'],$yearly_stats)) ?>,
                     backgroundColor: '#38bdf8',
                     borderRadius: 4
                 },
                 {
                     label: 'ชำรุด',
-                    data: [18, 17, 19],
+                    data: <?= json_encode(array_map(fn($r)=>(int)$r['damaged'],$yearly_stats)) ?>,
                     backgroundColor: '#ef4444',
                     borderRadius: 4
                 },
                 {
                     label: 'เสื่อมคุณภาพ',
-                    data: [62, 81, 93],
+                    data: <?= json_encode(array_map(fn($r)=>(int)$r['degraded'],$yearly_stats)) ?>,
                     backgroundColor: '#f59e0b',
                     borderRadius: 4
                 },
                 {
-                    label: 'เสนอจำหน่าย',
-                    data: [9, 14, 12],
+                    label: 'สูญไป/ไม่ใช้',
+                    data: <?= json_encode(array_map(fn($r)=>(int)$r['other'],$yearly_stats)) ?>,
                     backgroundColor: '#818cf8',
                     borderRadius: 4
                 }
@@ -566,7 +572,7 @@ document.addEventListener('DOMContentLoaded', function() {
             scales: {
                 y: {
                     beginAtZero: true,
-                    max: 600,
+
                     grid: { color: '#f1f5f9' },
                     ticks: { font: { family: 'Prompt', size: 10 } }
                 },
@@ -583,9 +589,9 @@ document.addEventListener('DOMContentLoaded', function() {
     new Chart(ctxDonut, {
         type: 'doughnut',
         data: {
-            labels: ['ใช้ได้', 'ชำรุด', 'เสื่อมคุณภาพ', 'เสนอจำหน่าย'],
+            labels: ['ใช้ได้', 'ชำรุด', 'เสื่อมคุณภาพ', 'สูญไป/ไม่ใช้'],
             datasets: [{
-                data: [495, 19, 93, 12],
+                data: <?= json_encode([(int)$stats['usable'],(int)$stats['damaged'],(int)$stats['degraded'],(int)$stats['lost']+(int)$stats['unused']]) ?>,
                 backgroundColor: ['#10b981', '#ef4444', '#f59e0b', '#818cf8'],
                 borderWidth: 2,
                 borderColor: '#ffffff'

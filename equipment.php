@@ -40,15 +40,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
                 $stmt = $pdo->prepare("INSERT INTO equipment_registry (category, equipment_name, equipment_code, brand_description, unit_price, acquisition_method, location, remarks, acquisition_date, status, image_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->execute([$cat, $name, $code, $brand, $price, $method, $loc, $remarks, $date, $status, $uploaded_img]);
 
-                // Also add to inspection_items
-                $max_num = (int)$pdo->query("SELECT MAX(item_number) FROM inspection_items")->fetchColumn();
-                $new_num = $max_num + 1;
-                $u = ($status === 'active') ? 1 : 0;
-                $d = ($status === 'damaged') ? 1 : 0;
-                $deg = ($status === 'degraded') ? 1 : 0;
-                $stmt2 = $pdo->prepare("INSERT INTO inspection_items (item_number, item_name, asset_code, category, location, price, status_usable, status_damaged, status_degraded, remarks, image_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt2->execute([$new_num, $name, $code, $cat, $loc, $price, $u, $d, $deg, $remarks, $uploaded_img]);
-
                 $flash_message = "เพิ่มครุภัณฑ์ '$name' เข้าสู่ระบบเรียบร้อยแล้ว";
             } catch (\Throwable $e) {
                 $flash_message = "เกิดข้อผิดพลาด: " . $e->getMessage();
@@ -83,20 +74,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
                 } else {
                     $stmt = $pdo->prepare("UPDATE equipment_registry SET equipment_name=?, equipment_code=?, category=?, location=?, unit_price=?, status=?, brand_description=?, remarks=? WHERE id=?");
                     $stmt->execute([$name, $code, $cat, $loc, $price, $status, $brand, $remarks, $id]);
-                }
-
-                // Update matching inspection item if code matches
-                if ($code !== '') {
-                    $u = ($status === 'active') ? 1 : 0;
-                    $d = ($status === 'damaged') ? 1 : 0;
-                    $deg = ($status === 'degraded') ? 1 : 0;
-                    if ($uploaded_img) {
-                        $stmt2 = $pdo->prepare("UPDATE inspection_items SET item_name=?, category=?, location=?, price=?, status_usable=?, status_damaged=?, status_degraded=?, remarks=?, image_url=? WHERE asset_code=?");
-                        $stmt2->execute([$name, $cat, $loc, $price, $u, $d, $deg, $remarks, $uploaded_img, $code]);
-                    } else {
-                        $stmt2 = $pdo->prepare("UPDATE inspection_items SET item_name=?, category=?, location=?, price=?, status_usable=?, status_damaged=?, status_degraded=?, remarks=? WHERE asset_code=?");
-                        $stmt2->execute([$name, $cat, $loc, $price, $u, $d, $deg, $remarks, $code]);
-                    }
                 }
 
                 $flash_message = "อัปเดตข้อมูลครุภัณฑ์เรียบร้อยแล้ว";
@@ -171,23 +148,21 @@ try {
     $items = $stmt->fetchAll();
 
     // Stats
-    $total_all = (int)$pdo->query("SELECT COUNT(*) FROM equipment_registry")->fetchColumn();
-    $stat_active = (int)$pdo->query("SELECT COUNT(*) FROM equipment_registry WHERE status = 'active'")->fetchColumn();
-    $stat_damaged = (int)$pdo->query("SELECT COUNT(*) FROM equipment_registry WHERE status = 'damaged'")->fetchColumn();
-    $stat_degraded = (int)$pdo->query("SELECT COUNT(*) FROM equipment_registry WHERE status = 'degraded'")->fetchColumn();
+    $s=$pdo->query("SELECT COUNT(*) total,COALESCE(SUM(status='active'),0) active,COALESCE(SUM(status='damaged'),0) damaged,COALESCE(SUM(status='degraded'),0) degraded FROM equipment_registry")->fetch(PDO::FETCH_ASSOC);
+    $total_all=(int)$s['total'];$stat_active=(int)$s['active'];$stat_damaged=(int)$s['damaged'];$stat_degraded=(int)$s['degraded'];
 
     $categories = $pdo->query("SELECT DISTINCT category FROM equipment_registry WHERE category IS NOT NULL AND category != '' ORDER BY category ASC")->fetchAll(PDO::FETCH_COLUMN);
     $locations = $pdo->query("SELECT DISTINCT location FROM equipment_registry WHERE location IS NOT NULL AND location != '' ORDER BY location ASC")->fetchAll(PDO::FETCH_COLUMN);
 
 } catch (\Throwable $e) {
     $items = [];
-    $total_filtered = 603;
-    $total_all = 603;
-    $stat_active = 495;
-    $stat_damaged = 19;
-    $stat_degraded = 93;
-    $categories = ['ครุภัณฑ์คอมพิวเตอร์', 'เฟอร์นิเจอร์', 'เครื่องพิมพ์', 'ครุภัณฑ์อาคารสถานที่', 'ครุภัณฑ์โสตทัศนูปกรณ์'];
-    $locations = ['ห้องคอมพิวเตอร์', 'ห้องธุรการ', 'ห้องผู้อำนวยการ', 'ห้องประชุม', 'ห้องพัสดุ'];
+    $total_filtered = 0;
+    $total_all = 0;
+    $stat_active = 0;
+    $stat_damaged = 0;
+    $stat_degraded = 0;
+    $categories = [];
+    $locations = [];
 }
 
 $total_pages = ceil($total_filtered / $per_page);
@@ -679,6 +654,7 @@ include __DIR__ . '/includes/header.php';
                             -
                         </span>
                     </div>
+                    <div class="py-2 border-t border-slate-200/60 flex items-center justify-between gap-3"><span class="text-slate-400">แหล่งข้อมูล</span><span id="modal-dt-source" class="text-slate-700 text-right">-</span></div>
 
                     <div class="py-2 border-t border-slate-200/60 flex items-center justify-between">
                         <span class="text-slate-400">ราคาต่อหน่วย</span>
@@ -774,22 +750,14 @@ include __DIR__ . '/includes/header.php';
                 </div>
 
                 <div>
-                    <label class="block text-slate-600 font-medium mb-1">รหัสครุภัณฑ์ *</label>
-                    <input type="text" name="equipment_code" required placeholder="เช่น 7440-001-0001/1" 
+                    <label class="block text-slate-600 font-medium mb-1">รหัสครุภัณฑ์ (เว้นว่างได้)</label>
+                    <input type="text" name="equipment_code" placeholder="เช่น 7440-001-0001/1"
                            class="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-slate-800 font-mono focus:ring-2 focus:ring-indigo-500">
                 </div>
 
                 <div>
                     <label class="block text-slate-600 font-medium mb-1">ประเภทครุภัณฑ์</label>
-                    <select name="category" class="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500">
-                        <option value="ครุภัณฑ์คอมพิวเตอร์">ครุภัณฑ์คอมพิวเตอร์</option>
-                        <option value="เฟอร์นิเจอร์">เฟอร์นิเจอร์</option>
-                        <option value="เครื่องพิมพ์">เครื่องพิมพ์</option>
-                        <option value="ครุภัณฑ์อาคารสถานที่">ครุภัณฑ์อาคารสถานที่</option>
-                        <option value="ครุภัณฑ์โสตทัศนูปกรณ์">ครุภัณฑ์โสตทัศนูปกรณ์</option>
-                        <option value="อุปกรณ์สำนักงาน">อุปกรณ์สำนักงาน</option>
-                        <option value="ครุภัณฑ์การศึกษา">ครุภัณฑ์การศึกษา</option>
-                    </select>
+                    <input type="text" name="category" list="registry-category-list" class="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500">
                 </div>
 
                 <div>
@@ -888,22 +856,14 @@ include __DIR__ . '/includes/header.php';
                 </div>
 
                 <div>
-                    <label class="block text-slate-600 font-medium mb-1">รหัสครุภัณฑ์ *</label>
-                    <input type="text" name="equipment_code" id="edit-code" required 
+                    <label class="block text-slate-600 font-medium mb-1">รหัสครุภัณฑ์ (เว้นว่างได้)</label>
+                    <input type="text" name="equipment_code" id="edit-code"
                            class="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-slate-800 font-mono focus:ring-2 focus:ring-indigo-500">
                 </div>
 
                 <div>
                     <label class="block text-slate-600 font-medium mb-1">ประเภทครุภัณฑ์</label>
-                    <select name="category" id="edit-cat" class="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500">
-                        <option value="ครุภัณฑ์คอมพิวเตอร์">ครุภัณฑ์คอมพิวเตอร์</option>
-                        <option value="เฟอร์นิเจอร์">เฟอร์นิเจอร์</option>
-                        <option value="เครื่องพิมพ์">เครื่องพิมพ์</option>
-                        <option value="ครุภัณฑ์อาคารสถานที่">ครุภัณฑ์อาคารสถานที่</option>
-                        <option value="ครุภัณฑ์โสตทัศนูปกรณ์">ครุภัณฑ์โสตทัศนูปกรณ์</option>
-                        <option value="อุปกรณ์สำนักงาน">อุปกรณ์สำนักงาน</option>
-                        <option value="ครุภัณฑ์การศึกษา">ครุภัณฑ์การศึกษา</option>
-                    </select>
+                    <input type="text" name="category" id="edit-cat" list="registry-category-list" class="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500">
                 </div>
 
                 <div>
@@ -985,7 +945,8 @@ function viewItem(data) {
 
     // Category
     const catEl = document.getElementById('modal-dt-cat');
-    if (catEl) catEl.innerHTML = `<i class="fa-solid fa-cube text-[10px] text-indigo-500 mr-1"></i> ${data.category || 'ครุภัณฑ์'}`;
+    if (catEl) catEl.textContent = data.category || 'ไม่ระบุประเภท';
+    document.getElementById('modal-dt-source').textContent = data.source_sheet ? `${data.source_sheet} · แถว ${data.source_row || '-'}` : 'เพิ่มในระบบ';
 
     // Price
     const priceEl = document.getElementById('modal-dt-price');
@@ -1008,6 +969,12 @@ function viewItem(data) {
         } else if (data.status === 'degraded') {
             stEl.className = 'inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200';
             stEl.textContent = '● เสื่อมคุณภาพ';
+        } else if (data.status === 'disposed') {
+            stEl.className = 'inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700';
+            stEl.textContent = '● จำหน่ายแล้ว';
+        } else if (data.status === 'unused') {
+            stEl.className = 'inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700';
+            stEl.textContent = '● ไม่ใช้';
         } else {
             stEl.className = 'inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200';
             stEl.textContent = '● ใช้ได้ (พร้อมใช้งาน)';
@@ -1302,4 +1269,5 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 
+<datalist id="registry-category-list"><?php foreach ($categories as $category): ?><option value="<?= htmlspecialchars($category) ?>"><?php endforeach; ?></datalist>
 <?php include __DIR__ . '/includes/footer.php'; ?>

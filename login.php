@@ -10,6 +10,7 @@ $app_logo = !empty($app_settings['logo_url']) ? $app_settings['logo_url'] : 'ass
 $error = '';
 $db_setup_error = '';
 $redirect = $_GET['redirect'] ?? 'index.php';
+if (!preg_match('~^(?!//)(?![a-z][a-z0-9+.-]*:)[^\r\n]+$~i', $redirect)) $redirect = 'index.php';
 
 // If already logged in, redirect to dashboard
 if (is_logged_in()) {
@@ -21,6 +22,7 @@ if (is_logged_in()) {
 // POST Handler: บันทึกและทดสอบการเชื่อมต่อฐานข้อมูล (Save DB Config)
 // -------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_db_config') {
+    if ($pdo) { http_response_code(403); exit('ฐานข้อมูลเชื่อมต่ออยู่แล้ว'); }
     $db_host = trim($_POST['db_host'] ?? 'localhost');
     $db_port = trim($_POST['db_port'] ?? '3306');
     $db_name = trim($_POST['db_name'] ?? '');
@@ -78,56 +80,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') !== 'save_
         $error = 'กรุณากรอกชื่อผู้ใช้งานและรหัสผ่านให้ครบถ้วน';
     } else {
         try {
-            if (!$pdo) {
-                // หากฐานข้อมูลยังไม่สามารถเชื่อมต่อได้ อนุญาตให้ Admin ล็อกอินฉุกเฉินได้
-                if ($username === 'admin' && in_array($password, ['password', '123456', 'admin'])) {
-                    login_user([
-                        'id' => 1,
-                        'username' => 'admin',
-                        'fullname' => 'ผู้ดูแลระบบ (โหมดฉุกเฉิน)',
-                        'role' => 'ผู้ดูแลระบบ',
-                        'avatar' => 'ผ'
-                    ]);
-                    header("Location: " . $redirect);
-                    exit;
-                }
-                throw new \Exception('ไม่สามารถเชื่อมต่อฐานข้อมูลได้ (' . ($GLOBALS['db_connection_error'] ?? 'กรุณาตั้งค่าฐานข้อมูล') . ')');
-            }
+            if (!$pdo) throw new \Exception('ไม่สามารถเชื่อมต่อฐานข้อมูลได้');
 
             $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ?");
             $stmt->execute([$username]);
             $user = $stmt->fetch();
 
-            if ($user && (password_verify($password, $user['password']) || $password === '123456' || $password === 'password')) {
+            if ($user && password_verify($password, $user['password'])) {
                 login_user($user);
-                header("Location: " . $redirect);
-                exit;
-            } else if ($username === 'admin' && in_array($password, ['password', '123456', 'admin'])) {
-                // Fallback login สำหรับกรณีเปลี่ยนฐานข้อมูลใหม่
-                login_user([
-                    'id' => 1,
-                    'username' => 'admin',
-                    'fullname' => 'ผู้ดูแลระบบ',
-                    'role' => 'ผู้ดูแลระบบ',
-                    'avatar' => 'ผ'
-                ]);
                 header("Location: " . $redirect);
                 exit;
             } else {
                 $error = 'ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง';
             }
         } catch (\Throwable $e) {
-            if ($username === 'admin' && in_array($password, ['password', '123456', 'admin'])) {
-                login_user([
-                    'id' => 1,
-                    'username' => 'admin',
-                    'fullname' => 'ผู้ดูแลระบบ (โหมดฉุกเฉิน)',
-                    'role' => 'ผู้ดูแลระบบ',
-                    'avatar' => 'ผ'
-                ]);
-                header("Location: " . $redirect);
-                exit;
-            }
             $error = 'เกิดข้อผิดพลาดในการเชื่อมต่อ: ' . $e->getMessage();
         }
     }
@@ -157,6 +123,10 @@ $current_db_user = $username ?? 'root';
         body {
             font-family: 'Prompt', sans-serif;
         }
+        @media (max-width: 640px) {
+            body { min-height: 100dvh; padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); }
+            input, button { min-height: 44px; }
+        }
     </style>
 </head>
 <body class="bg-gradient-to-br from-[#0c0e27] via-[#141846] to-[#1a1b52] text-slate-800 min-h-screen flex flex-col justify-center items-center p-4 sm:p-6 relative overflow-x-hidden">
@@ -165,7 +135,7 @@ $current_db_user = $username ?? 'root';
     <div class="absolute -top-32 -left-32 w-80 h-80 sm:w-96 sm:h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none"></div>
     <div class="absolute -bottom-32 -right-32 w-80 h-80 sm:w-96 sm:h-96 bg-purple-600/20 rounded-full blur-3xl pointer-events-none"></div>
 
-    <div class="w-full max-w-[390px] relative z-10 my-auto">
+    <div class="w-full max-w-[420px] relative z-10 my-auto">
         
         <!-- Logo & Title -->
         <div class="text-center mb-5">
@@ -238,7 +208,7 @@ $current_db_user = $username ?? 'root';
                         </span>
                         <input type="text" name="username" id="username" required autocomplete="username"
                                placeholder="กรอกชื่อผู้ใช้งาน"
-                               class="w-full bg-slate-50/80 border border-slate-200 pl-10 pr-3.5 py-2.5 rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-600 transition-all">
+                               class="w-full bg-slate-50/80 border border-slate-200 pl-10 pr-3.5 py-3 rounded-xl text-base text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-600 transition-all">
                     </div>
                 </div>
 
@@ -251,7 +221,7 @@ $current_db_user = $username ?? 'root';
                         </span>
                         <input type="password" name="password" id="password" required autocomplete="current-password"
                                placeholder="กรอกรหัสผ่าน"
-                               class="w-full bg-slate-50/80 border border-slate-200 pl-10 pr-10 py-2.5 rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-600 transition-all">
+                               class="w-full bg-slate-50/80 border border-slate-200 pl-10 pr-10 py-3 rounded-xl text-base text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-600 transition-all">
                         <button type="button" onclick="togglePasswordVisibility()" aria-label="แสดงรหัสผ่าน" class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer">
                             <i class="fa-regular fa-eye text-xs" id="eye-icon"></i>
                         </button>
@@ -293,8 +263,8 @@ $current_db_user = $username ?? 'root';
     </div>
 
     <!-- MODAL: ตั้งค่าฐานข้อมูล (Database Setup Modal) -->
-    <div id="db-setup-modal" class="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div id="db-setup-modal" class="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm hidden flex items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl w-full max-w-md max-h-[90dvh] overflow-y-auto shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
             <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
                 <div class="flex items-center gap-2">
                     <div class="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center text-sm">
@@ -313,7 +283,7 @@ $current_db_user = $username ?? 'root';
             <form method="POST" action="login.php" class="p-5 space-y-3.5 text-xs">
                 <input type="hidden" name="action" value="save_db_config">
                 
-                <div class="grid grid-cols-3 gap-2">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <div class="col-span-2">
                         <label class="block text-slate-600 font-medium mb-1">Host *</label>
                         <input type="text" name="db_host" required value="<?= htmlspecialchars($current_db_host) ?>" placeholder="localhost หรือ 127.0.0.1" 

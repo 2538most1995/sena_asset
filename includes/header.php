@@ -159,6 +159,13 @@ $app_logo = !empty($app_settings['logo_url']) ? $app_settings['logo_url'] : 'ass
                     <span>นำเข้าข้อมูล</span>
                 </a>
 
+                <a href="categories.php" class="flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-medium transition-all <?= $active_page === 'categories' ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white' : 'text-slate-300 hover:text-white hover:bg-white/5' ?>">
+                    <i class="fa-solid fa-tags text-base w-5 text-center"></i><span>จัดการหมวดครุภัณฑ์</span>
+                </a>
+                <a href="reconciliation.php" class="flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-medium transition-all <?= $active_page === 'reconciliation' ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white' : 'text-slate-300 hover:text-white hover:bg-white/5' ?>">
+                    <i class="fa-solid fa-code-compare text-base w-5 text-center"></i><span>กระทบยอดข้อมูล</span>
+                </a>
+
                 <!-- 5. รายงาน -->
                 <a href="reports.php" class="flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-medium transition-all <?= $active_page === 'reports' ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-lg shadow-indigo-600/30' : 'text-slate-300 hover:text-white hover:bg-white/5' ?>">
                     <i class="fa-solid fa-chart-simple text-base w-5 text-center"></i>

@@ -11,3 +11,4 @@ config/db_config.php
 config/database.local.php
 config/production.php
 .env
+.local-backups/

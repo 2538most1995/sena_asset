@@ -204,6 +204,34 @@ function sena_ensure_schema_ready(PDO $pdo) {
             error_log("Auto schema creation error: " . $ex->getMessage());
         }
     }
+    // Additive migrations for installations created by earlier releases.
+    foreach (['equipment_registry', 'inspection_items'] as $table) {
+        try {
+            $cols = $pdo->query("SHOW COLUMNS FROM `$table`")->fetchAll(PDO::FETCH_COLUMN);
+            $needed = ['source_file' => 'VARCHAR(255) NULL', 'source_sheet' => 'VARCHAR(255) NULL',
+                       'source_row' => 'INT NULL', 'source_key' => 'VARCHAR(500) NULL'];
+            if ($table === 'inspection_items') $needed += [
+                'is_overlap'=>'TINYINT(1) DEFAULT 0','category'=>'VARCHAR(255) NULL',
+                'location'=>'VARCHAR(255) NULL','inspector'=>'VARCHAR(100) NULL',
+                'price'=>'DECIMAL(15,2) NULL','image_url'=>'VARCHAR(500) NULL'];
+            else $needed += ['image_url'=>'VARCHAR(500) NULL'];
+            foreach ($needed as $column => $definition) {
+                if (!in_array($column, $cols, true)) $pdo->exec("ALTER TABLE `$table` ADD COLUMN `$column` $definition");
+            }
+            $indexes = $pdo->query("SHOW INDEX FROM `$table`")->fetchAll(PDO::FETCH_ASSOC);
+            $names = array_column($indexes, 'Key_name');
+            if (!in_array('uq_source_key', $names, true)) $pdo->exec("ALTER TABLE `$table` ADD UNIQUE KEY uq_source_key (source_key(191))");
+            if ($table === 'inspection_items' && !in_array('idx_year_number', $names, true))
+                $pdo->exec("ALTER TABLE `$table` ADD INDEX idx_year_number (fiscal_year, item_number)");
+            if ($table === 'equipment_registry' && !in_array('idx_category_id', $names, true))
+                $pdo->exec("ALTER TABLE `$table` ADD INDEX idx_category_id (category, id)");
+        } catch (\Throwable $ex) { error_log("Migration error: " . $ex->getMessage()); }
+    }
+    try {
+        $indexes=$pdo->query('SHOW INDEX FROM asset_categories')->fetchAll(PDO::FETCH_ASSOC);
+        if (!in_array('uq_category_name',array_column($indexes,'Key_name'),true))
+            $pdo->exec('ALTER TABLE asset_categories ADD UNIQUE KEY uq_category_name (category_name)');
+    } catch (\Throwable $ex) { error_log('Category index migration error: '.$ex->getMessage()); }
     $ready = true;
 }
 
