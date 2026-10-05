@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <!-- Thai Royal Garuda Emblem (ตราครุฑ) Vector Definition -->
+  <defs>
+    <linearGradient id="garudaGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffd700"/>
+      <stop offset="50%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#b45309"/>
+    </linearGradient>
+    <linearGradient id="garudaRed" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#dc2626"/>
+      <stop offset="50%" stop-color="#b91c1c"/>
+      <stop offset="100%" stop-color="#7f1d1d"/>
+    </linearGradient>
+    <filter id="garudaShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+
+  <g id="garuda" filter="url(#garudaShadow)">
+    <!-- Crown / Chada (มงกุฎยอดชฎา) -->
+    <path d="M250,25 L254,60 L260,85 L268,110 L250,115 L232,110 L240,85 L246,60 Z" fill="url(#garudaGold)" stroke="#92400e" stroke-width="1.5"/>
+    <polygon points="250,15 253,30 250,38 247,30" fill="#fef08a"/>
+    <circle cx="250" cy="18" r="3" fill="#dc2626"/>
+    <!-- Crown ornaments -->
+    <path d="M230,105 Q250,95 270,105 Q250,118 230,105 Z" fill="#b45309"/>
+    <circle cx="250" cy="107" r="4" fill="#fef08a"/>
+    <circle cx="240" cy="106" r="3" fill="#dc2626"/>
+    <circle cx="260" cy="106" r="3" fill="#dc2626"/>
+
+    <!-- Head / Face & Beak -->
+    <path d="M236,115 Q250,112 264,115 Q268,135 264,152 Q250,165 236,152 Q232,135 236,115 Z" fill="url(#garudaRed)" stroke="#7f1d1d" stroke-width="1.5"/>
+    <!-- Ears / Kundala -->
+    <path d="M233,122 Q218,118 214,130 Q222,142 233,136 Z" fill="url(#garudaGold)"/>
+    <path d="M267,122 Q282,118 286,130 Q278,142 267,136 Z" fill="url(#garudaGold)"/>
+    <!-- Eyes -->
+    <ellipse cx="243" cy="130" rx="3.5" ry="2.5" fill="#ffffff"/>
+    <circle cx="243" cy="130" r="1.5" fill="#1e1e1e"/>
+    <ellipse cx="257" cy="130" rx="3.5" ry="2.5" fill="#ffffff"/>
+    <circle cx="257" cy="130" r="1.5" fill="#1e1e1e"/>
+    <!-- Curved Beak -->
+    <path d="M246,134 Q250,132 254,134 Q258,146 250,158 Q242,146 246,134 Z" fill="url(#garudaGold)" stroke="#78350f" stroke-width="1.5"/>
+
+    <!-- Torso / Chest (อกครุฑ) -->
+    <path d="M228,155 Q250,162 272,155 L280,210 Q250,225 220,210 Z" fill="url(#garudaRed)" stroke="#7f1d1d" stroke-width="1.5"/>
+    <!-- Sangwan / Chest Ornaments (สังวาลย์ทอง) -->
+    <path d="M232,160 Q250,195 268,160" fill="none" stroke="url(#garudaGold)" stroke-width="5" stroke-linecap="round"/>
+    <path d="M268,160 Q250,195 232,160" fill="none" stroke="#b45309" stroke-width="2"/>
+    <circle cx="250" cy="182" r="7" fill="url(#garudaGold)" stroke="#78350f" stroke-width="1.5"/>
+    <circle cx="250" cy="182" r="3" fill="#dc2626"/>
+
+    <!-- Left Wing (ปีกซ้าย) -->
+    <g id="leftWing">
+      <path d="M225,160 Q170,140 120,105 Q100,90 70,80 Q90,115 110,135 Q130,155 160,175 Q110,165 75,150 Q105,185 140,205 Q175,225 218,220" fill="url(#garudaRed)" stroke="#7f1d1d" stroke-width="1.5"/>
+      <path d="M70,80 Q100,100 125,120 M75,150 Q115,165 145,180 M95,200 Q130,210 165,215" stroke="url(#garudaGold)" stroke-width="2" fill="none"/>
+      <!-- Feathers outer rim -->
+      <path d="M68,80 C50,110 55,160 85,210 C105,240 145,265 210,250" fill="none" stroke="url(#garudaRed)" stroke-width="4"/>
+      <!-- Sub-feathers -->
+      <path d="M95,115 Q60,100 45,95 Q65,125 90,145" fill="url(#garudaGold)"/>
+      <path d="M85,150 Q45,145 35,145 Q60,170 85,185" fill="url(#garudaGold)"/>
+      <path d="M90,195 Q55,200 48,210 Q75,225 105,230" fill="url(#garudaGold)"/>
+      <path d="M120,235 Q90,255 85,270 Q120,265 150,255" fill="url(#garudaGold)"/>
+    </g>
+
+    <!-- Right Wing (ปีกขวา) - Mirrored -->
+    <g id="rightWing">
+      <path d="M275,160 Q330,140 380,105 Q400,90 430,80 Q410,115 390,135 Q370,155 340,175 Q390,165 425,150 Q395,185 360,205 Q325,225 282,220" fill="url(#garudaRed)" stroke="#7f1d1d" stroke-width="1.5"/>
+      <path d="M430,80 Q400,100 375,120 M425,150 Q385,165 355,180 M405,200 Q370,210 335,215" stroke="url(#garudaGold)" stroke-width="2" fill="none"/>
+      <!-- Feathers outer rim -->
+      <path d="M432,80 C450,110 445,160 415,210 C395,240 355,265 290,250" fill="none" stroke="url(#garudaRed)" stroke-width="4"/>
+      <!-- Sub-feathers -->
+      <path d="M405,115 Q440,100 455,95 Q435,125 410,145" fill="url(#garudaGold)"/>
+      <path d="M415,150 Q455,145 465,145 Q440,170 415,185" fill="url(#garudaGold)"/>
+      <path d="M410,195 Q445,200 452,210 Q425,225 395,230" fill="url(#garudaGold)"/>
+      <path d="M380,235 Q410,255 415,270 Q380,265 350,255" fill="url(#garudaGold)"/>
+    </g>
+
+    <!-- Arms & Talons (แขนและมือครุฑ) -->
+    <!-- Left Arm -->
+    <path d="M228,170 Q180,185 155,195 Q140,200 130,225 Q145,220 160,210 Q195,195 225,190 Z" fill="url(#garudaRed)" stroke="#7f1d1d"/>
+    <!-- Left Claws holding serpent -->
+    <path d="M128,222 Q115,225 110,240 Q122,235 132,230" fill="url(#garudaGold)" stroke="#78350f" stroke-width="1.5"/>
+    <path d="M132,220 Q125,210 115,215 Q125,225 135,228" fill="url(#garudaGold)" stroke="#78350f" stroke-width="1.5"/>
+
+    <!-- Right Arm -->
+    <path d="M272,170 Q320,185 345,195 Q360,200 370,225 Q355,220 340,210 Q305,195 275,190 Z" fill="url(#garudaRed)" stroke="#7f1d1d"/>
+    <!-- Right Claws holding serpent -->
+    <path d="M372,222 Q385,225 390,240 Q378,235 368,230" fill="url(#garudaGold)" stroke="#78350f" stroke-width="1.5"/>
+    <path d="M368,220 Q375,210 385,215 Q375,225 365,228" fill="url(#garudaGold)" stroke="#78350f" stroke-width="1.5"/>
+
+    <!-- Belt & Lower Garment (สนับเพลาและรัดประคด) -->
+    <path d="M218,210 Q250,225 282,210 L288,245 Q250,265 212,245 Z" fill="url(#garudaGold)" stroke="#78350f" stroke-width="1.5"/>
+    <!-- Pendant (ชายแครง ห้อยหน้า) -->
+    <path d="M242,240 L250,305 L258,240 Z" fill="#b91c1c" stroke="url(#garudaGold)" stroke-width="2"/>
+    <polygon points="250,245 255,290 250,300 245,290" fill="url(#garudaGold)"/>
+
+    <!-- Tail Feathers (หางครุฑ) -->
+    <g id="tailFeathers">
+      <path d="M250,260 Q235,320 220,380 Q235,360 250,340 Q265,360 280,380 Q265,320 250,260 Z" fill="url(#garudaGold)" stroke="#78350f" stroke-width="1.5"/>
+      <path d="M250,270 L250,440 L253,390 L250,440 L247,390" stroke="#b45309" stroke-width="2" fill="none"/>
+      <!-- Radiating lower tail feathers -->
+      <path d="M235,340 Q200,390 180,430 Q215,410 238,375" fill="url(#garudaRed)" stroke="#7f1d1d"/>
+      <path d="M265,340 Q300,390 320,430 Q285,410 262,375" fill="url(#garudaRed)" stroke="#7f1d1d"/>
+      <!-- Center long tail -->
+      <path d="M244,340 L250,455 L256,340 Z" fill="url(#garudaGold)" stroke="#78350f" stroke-width="1.5"/>
+    </g>
+
+    <!-- Powerful Legs and Talons (ขากระหนกและกรงเล็บ) -->
+    <!-- Left Leg -->
+    <path d="M215,240 Q180,270 170,305 Q190,315 215,290 Q225,265 225,245 Z" fill="url(#garudaRed)" stroke="#7f1d1d" stroke-width="1.5"/>
+    <!-- Left Talons -->
+    <path d="M170,305 Q150,325 140,350 Q160,340 175,320 Q185,345 195,365 Q195,335 185,310 Z" fill="url(#garudaGold)" stroke="#78350f" stroke-width="1.5"/>
+
+    <!-- Right Leg -->
+    <path d="M285,240 Q320,270 330,305 Q310,315 285,290 Q275,265 275,245 Z" fill="url(#garudaRed)" stroke="#7f1d1d" stroke-width="1.5"/>
+    <!-- Right Talons -->
+    <path d="M330,305 Q350,325 360,350 Q340,340 325,320 Q315,345 305,365 Q305,335 315,310 Z" fill="url(#garudaGold)" stroke="#78350f" stroke-width="1.5"/>
+
+    <!-- Sacred Nagas / Serpents in Claws (พญานาคในกรงเล็บ) -->
+    <path d="M110,240 Q90,280 120,330 Q140,350 160,370 Q140,410 115,440" fill="none" stroke="url(#garudaGold)" stroke-width="4" stroke-linecap="round"/>
+    <path d="M390,240 Q410,280 380,330 Q360,350 340,370 Q360,410 385,440" fill="none" stroke="url(#garudaGold)" stroke-width="4" stroke-linecap="round"/>
+    <!-- Naga Heads -->
+    <circle cx="112" cy="442" r="5" fill="url(#garudaGold)" stroke="#78350f"/>
+    <circle cx="388" cy="442" r="5" fill="url(#garudaGold)" stroke="#78350f"/>
+  </g>
+</svg>
