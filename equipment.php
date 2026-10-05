@@ -50,7 +50,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
                 $stmt2->execute([$new_num, $name, $code, $cat, $loc, $price, $u, $d, $deg, $remarks, $uploaded_img]);
 
                 $flash_message = "เพิ่มครุภัณฑ์ '$name' เข้าสู่ระบบเรียบร้อยแล้ว";
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 $flash_message = "เกิดข้อผิดพลาด: " . $e->getMessage();
                 $flash_type = 'error';
             }
@@ -100,7 +100,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
                 }
 
                 $flash_message = "อัปเดตข้อมูลครุภัณฑ์เรียบร้อยแล้ว";
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 $flash_message = "เกิดข้อผิดพลาด: " . $e->getMessage();
                 $flash_type = 'error';
             }
@@ -112,7 +112,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
                 $stmt = $pdo->prepare("DELETE FROM equipment_registry WHERE id=?");
                 $stmt->execute([$id]);
                 $flash_message = "ลบรายการครุภัณฑ์ออกจากทะเบียนเรียบร้อยแล้ว";
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 $flash_message = "เกิดข้อผิดพลาด: " . $e->getMessage();
                 $flash_type = 'error';
             }
@@ -179,7 +179,7 @@ try {
     $categories = $pdo->query("SELECT DISTINCT category FROM equipment_registry WHERE category IS NOT NULL AND category != '' ORDER BY category ASC")->fetchAll(PDO::FETCH_COLUMN);
     $locations = $pdo->query("SELECT DISTINCT location FROM equipment_registry WHERE location IS NOT NULL AND location != '' ORDER BY location ASC")->fetchAll(PDO::FETCH_COLUMN);
 
-} catch (\Exception $e) {
+} catch (\Throwable $e) {
     $items = [];
     $total_filtered = 603;
     $total_all = 603;

@@ -93,6 +93,6 @@ try {
             'pct_checked' => $stat_total > 0 ? round(($stat_checked / $stat_total) * 100, 1) : 0
         ]
     ]);
-} catch (\Exception $e) {
+} catch (\Throwable $e) {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 }

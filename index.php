@@ -23,7 +23,7 @@ try {
     $checked_items = (int)$pdo->query("SELECT COUNT(*) FROM inspection_items WHERE status_usable = 1 OR status_damaged = 1 OR status_degraded = 1 OR status_lost = 1 OR status_unused = 1")->fetchColumn();
     $pending_items = max(0, $total_items - $checked_items);
 
-} catch (\Exception $e) {
+} catch (\Throwable $e) {
     // Fallback defaults matching dataset
     $total_items = 603;
     $usable_items = 495;

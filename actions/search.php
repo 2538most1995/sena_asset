@@ -23,6 +23,6 @@ try {
     $items = $stmt->fetchAll();
 
     echo json_encode(['results' => $items]);
-} catch (\Exception $e) {
+} catch (\Throwable $e) {
     echo json_encode(['error' => $e->getMessage(), 'results' => []]);
 }

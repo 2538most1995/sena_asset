@@ -23,14 +23,15 @@ function require_login() {
 }
 
 function login_user($user) {
-    $_SESSION['user_id'] = $user['id'];
-    $_SESSION['username'] = $user['username'];
+    $_SESSION['user_id'] = $user['id'] ?? 1;
+    $_SESSION['username'] = $user['username'] ?? 'admin';
+    $fullname = $user['fullname'] ?? 'ผู้ใช้งาน';
     $_SESSION['user'] = [
-        'id' => $user['id'],
-        'username' => $user['username'],
-        'fullname' => $user['fullname'],
-        'role' => $user['role'],
-        'avatar' => $user['avatar'] ?: mb_substr($user['fullname'], 0, 1)
+        'id' => $user['id'] ?? 1,
+        'username' => $user['username'] ?? 'admin',
+        'fullname' => $fullname,
+        'role' => $user['role'] ?? 'ผู้ดูแลระบบ',
+        'avatar' => !empty($user['avatar']) ? $user['avatar'] : mb_substr($fullname, 0, 1, 'UTF-8')
     ];
 }
 

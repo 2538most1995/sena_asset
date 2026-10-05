@@ -49,7 +49,7 @@ try {
         $db_roles = $stmt_roles->fetchAll(PDO::FETCH_COLUMN);
         $all_roles = array_values(array_unique(array_filter(array_merge($all_roles, $db_roles))));
     }
-} catch (\Exception $e) {}
+} catch (\Throwable $e) {}
 
 $message = '';
 $message_type = 'success';
@@ -125,7 +125,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
                     $chk->execute([$del_role]);
                     $user_count = (int)$chk->fetchColumn();
                 }
-            } catch (\Exception $e) {}
+            } catch (\Throwable $e) {}
 
             if ($user_count > 0) {
                 $message = "ไม่สามารถลบตำแหน่ง '$del_role' ได้ เนื่องจากมีผู้ใช้งาน $user_count คนกำลังใช้งานอยู่";
@@ -176,7 +176,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
                     $message = "เพิ่มผู้ใช้งาน '$fullname' (@$username) ตำแหน่ง '$role' เข้าสู่ระบบเรียบร้อยแล้ว";
                     $message_type = 'success';
                 }
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 $message = 'เกิดข้อผิดพลาด: ' . $e->getMessage();
                 $message_type = 'error';
             }
@@ -230,7 +230,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
                     $message = "อัปเดตข้อมูลผู้ใช้งาน '$fullname' เรียบร้อยแล้ว";
                     $message_type = 'success';
                 }
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 $message = 'เกิดข้อผิดพลาด: ' . $e->getMessage();
                 $message_type = 'error';
             }
@@ -250,7 +250,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
                 $stmt->execute([$id]);
                 $message = 'ลบบัญชีผู้ใช้งานเรียบร้อยแล้ว';
                 $message_type = 'success';
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 $message = 'เกิดข้อผิดพลาด: ' . $e->getMessage();
                 $message_type = 'error';
             }
@@ -285,12 +285,61 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
                     $message = 'รหัสผ่านปัจจุบันไม่ถูกต้อง';
                     $message_type = 'error';
                 }
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 $message = 'เกิดข้อผิดพลาด: ' . $e->getMessage();
                 $message_type = 'error';
             }
         }
         $active_tab = 'password';
+
+    } elseif ($action === 'save_db_settings') {
+        $db_host = trim($_POST['db_host'] ?? 'localhost');
+        $db_port = trim($_POST['db_port'] ?? '3306');
+        $db_name = trim($_POST['db_name'] ?? '');
+        $db_user = trim($_POST['db_user'] ?? '');
+        $db_pass = trim($_POST['db_pass'] ?? '');
+
+        if ($db_name === '' || $db_user === '') {
+            $message = 'กรุณาระบุชื่อฐานข้อมูลและชื่อผู้ใช้ฐานข้อมูล';
+            $message_type = 'error';
+        } else {
+            try {
+                $port_part = !empty($db_port) ? ";port=" . (int)$db_port : "";
+                $test_dsn = "mysql:host={$db_host}{$port_part};dbname={$db_name};charset=utf8mb4";
+                $test_pdo = new PDO($test_dsn, $db_user, $db_pass, [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                    PDO::ATTR_EMULATE_PREPARES => false,
+                ]);
+
+                // Save to config/db_config.php (which is in .gitignore and never overwritten by git)
+                $config_content = "<?php\n" .
+                    "// config/db_config.php\n" .
+                    "// การตั้งค่าฐานข้อมูลเซิร์ฟเวอร์จริง - ไฟล์นี้จะไม่ถูก Git เขียนทับเมื่ออัปเดตระบบ\n" .
+                    "return " . var_export([
+                        'host'     => $db_host,
+                        'port'     => $db_port,
+                        'dbname'   => $db_name,
+                        'username' => $db_user,
+                        'password' => $db_pass,
+                        'charset'  => 'utf8mb4'
+                    ], true) . ";\n";
+
+                file_put_contents(__DIR__ . '/config/db_config.php', $config_content);
+
+                // Auto bootstrap tables
+                if (function_exists('sena_ensure_schema_ready')) {
+                    sena_ensure_schema_ready($test_pdo);
+                }
+
+                $message = 'เชื่อมต่อฐานข้อมูลสำเร็จ และบันทึกการตั้งค่าลงใน config/db_config.php เรียบร้อยแล้ว (ไฟล์นี้จะไม่ถูก Git เขียนทับเมื่ออัปเดตระบบ)';
+                $message_type = 'success';
+            } catch (\Throwable $e) {
+                $message = 'ทดสอบเชื่อมต่อฐานข้อมูลไม่สำเร็จ: ' . $e->getMessage();
+                $message_type = 'error';
+            }
+        }
+        $active_tab = 'org';
     }
 }
 
@@ -301,7 +350,7 @@ try {
         $stmt = $pdo->query("SELECT id, username, fullname, role, created_at FROM users ORDER BY id ASC");
         $users_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-} catch (\Exception $e) {}
+} catch (\Throwable $e) {}
 
 include __DIR__ . '/includes/header.php';
 ?>
@@ -685,22 +734,25 @@ include __DIR__ . '/includes/header.php';
                 if ($pdo) {
                     $count_eq = (int)$pdo->query("SELECT COUNT(*) FROM equipment_registry")->fetchColumn();
                     $count_insp = (int)$pdo->query("SELECT COUNT(*) FROM inspection_items")->fetchColumn();
-                } else {
-                    $count_eq = 603;
-                    $count_insp = 603;
                 }
-            } catch (\Exception $e) { $count_eq = 603; $count_insp = 603; }
+            } catch (\Throwable $e) {}
             ?>
             <div class="space-y-2 text-xs">
                 <div class="flex items-center justify-between py-1 border-b border-slate-100">
                     <span class="text-slate-400">การเชื่อมต่อฐานข้อมูล</span>
+                    <?php if ($pdo): ?>
                     <span class="inline-flex items-center gap-1 text-emerald-600 font-semibold">
                         <i class="fa-solid fa-circle text-[8px]"></i> ปกติ (MySQL)
                     </span>
+                    <?php else: ?>
+                    <span class="inline-flex items-center gap-1 text-rose-600 font-semibold" title="<?= htmlspecialchars($GLOBALS['db_connection_error'] ?? '') ?>">
+                        <i class="fa-solid fa-circle text-[8px]"></i> ไม่ได้เชื่อมต่อ
+                    </span>
+                    <?php endif; ?>
                 </div>
                 <div class="flex items-center justify-between py-1 border-b border-slate-100">
-                    <span class="text-slate-400">ฐานข้อมูล</span>
-                    <span class="font-mono text-slate-700 font-medium">sena_asset</span>
+                    <span class="text-slate-400">โฮสต์ / ฐานข้อมูล</span>
+                    <span class="font-mono text-slate-700 font-medium"><?= htmlspecialchars(($host ?? 'localhost') . ' : ' . ($dbname ?? 'sena_asset')) ?></span>
                 </div>
                 <div class="flex items-center justify-between py-1 border-b border-slate-100">
                     <span class="text-slate-400">ครุภัณฑ์ในทะเบียน</span>
@@ -721,6 +773,10 @@ include __DIR__ . '/includes/header.php';
             </div>
 
             <div class="pt-3 border-t border-slate-100 space-y-2">
+                <button type="button" onclick="openDbConfigModal()" class="w-full inline-flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-medium border border-amber-200 transition-colors cursor-pointer">
+                    <i class="fa-solid fa-server text-xs text-amber-600"></i>
+                    <span>ตั้งค่าเชื่อมต่อฐานข้อมูล (Database)</span>
+                </button>
                 <a href="reports.php?export=excel" class="w-full inline-flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-medium border border-slate-200 transition-colors">
                     <i class="fa-solid fa-file-export text-xs text-emerald-600"></i>
                     <span>สำรองข้อมูลเป็น Excel</span>
@@ -910,7 +966,88 @@ include __DIR__ . '/includes/header.php';
     </div>
 </div>
 
+<!-- MODAL: ตั้งค่าการเชื่อมต่อฐานข้อมูล (Database Config Modal) -->
+<div id="db-config-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center text-sm">
+                    <i class="fa-solid fa-database"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-slate-800 text-sm">ตั้งค่าเชื่อมต่อฐานข้อมูลเซิร์ฟเวอร์</h3>
+                    <p class="text-[10px] text-slate-400">บันทึกลง config/db_config.php (ไม่ถูก Git เขียนทับ)</p>
+                </div>
+            </div>
+            <button onclick="closeDbConfigModal()" class="text-slate-400 hover:text-slate-600 cursor-pointer">
+                <i class="fa-solid fa-xmark text-sm"></i>
+            </button>
+        </div>
+
+        <form method="POST" action="settings.php" class="p-5 space-y-3.5 text-xs">
+            <input type="hidden" name="action" value="save_db_settings">
+            
+            <div class="grid grid-cols-3 gap-2">
+                <div class="col-span-2">
+                    <label class="block text-slate-600 font-medium mb-1">Host *</label>
+                    <input type="text" name="db_host" required value="<?= htmlspecialchars($host ?? 'localhost') ?>" placeholder="localhost หรือ 127.0.0.1" 
+                           class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-slate-800 font-mono focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-slate-600 font-medium mb-1">Port</label>
+                    <input type="text" name="db_port" value="<?= htmlspecialchars($port ?? '3306') ?>" placeholder="3306" 
+                           class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-slate-800 font-mono focus:ring-2 focus:ring-indigo-500">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-slate-600 font-medium mb-1">ชื่อฐานข้อมูล (Database Name) *</label>
+                <input type="text" name="db_name" required value="<?= htmlspecialchars($dbname ?? 'sena_asset') ?>" placeholder="เช่น sena_asset หรือ krumostc_sena_asset" 
+                       class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-slate-800 font-mono focus:ring-2 focus:ring-indigo-500">
+            </div>
+
+            <div>
+                <label class="block text-slate-600 font-medium mb-1">ชื่อผู้ใช้ฐานข้อมูล (Username) *</label>
+                <input type="text" name="db_user" required value="<?= htmlspecialchars($username ?? 'root') ?>" placeholder="เช่น root หรือ krumostc_user" 
+                       class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-slate-800 font-mono focus:ring-2 focus:ring-indigo-500">
+            </div>
+
+            <div>
+                <label class="block text-slate-600 font-medium mb-1">รหัสผ่านฐานข้อมูล (Password)</label>
+                <input type="password" name="db_pass" placeholder="กรอกรหัสผ่าน MySQL (หากไม่มีให้เว้นว่าง)" 
+                       class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500">
+            </div>
+
+            <div class="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-[11px] space-y-1">
+                <p class="font-semibold flex items-center gap-1.5">
+                    <i class="fa-solid fa-shield-halved text-xs"></i>
+                    <span>ระบบป้องกันการเขียนทับอัตโนมัติ</span>
+                </p>
+                <p class="text-[10px] text-amber-700 leading-relaxed">
+                    ข้อมูลนี้จะถูกบันทึกลงในไฟล์ <code class="bg-white px-1 py-0.5 rounded border border-amber-200 font-mono">config/db_config.php</code> บนเซิร์ฟเวอร์ ไฟล์นี้จะไม่ถูก Git ดึงทับเมื่ออัปเดตระบบในอนาคต ทำให้ไม่ต้องมาแก้ไฟล์ใหม่อีกต่อไป
+                </p>
+            </div>
+
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                <button type="button" onclick="closeDbConfigModal()" class="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer">
+                    ยกเลิก
+                </button>
+                <button type="submit" class="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-medium shadow-xs transition-colors cursor-pointer flex items-center gap-1.5">
+                    <i class="fa-solid fa-floppy-disk text-xs"></i>
+                    <span>ทดสอบและบันทึกการตั้งค่า</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
+function openDbConfigModal() {
+    document.getElementById('db-config-modal').classList.remove('hidden');
+}
+function closeDbConfigModal() {
+    document.getElementById('db-config-modal').classList.add('hidden');
+}
 function switchTab(tab) {
     ['org', 'users', 'password'].forEach(t => {
         const content = document.getElementById('tab-content-' + t);

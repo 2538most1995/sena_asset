@@ -81,7 +81,7 @@ try {
 
     $pdo->commit();
     echo json_encode(['success' => true, 'count' => $inserted]);
-} catch (\Exception $e) {
+} catch (\Throwable $e) {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }

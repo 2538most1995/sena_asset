@@ -33,7 +33,7 @@ if ($inspection_id > 0) {
     try {
         $stmt = $pdo->prepare("UPDATE inspection_items SET image_url = ? WHERE id = ?");
         $stmt->execute([$result['url'], $inspection_id]);
-    } catch (\Exception $e) {}
+    } catch (\Throwable $e) {}
 }
 
 if ($equipment_id > 0) {
@@ -46,7 +46,7 @@ if ($equipment_id > 0) {
             $stmt2 = $pdo->prepare("UPDATE inspection_items SET image_url = ? WHERE asset_code = ?");
             $stmt2->execute([$result['url'], $equipment_code]);
         }
-    } catch (\Exception $e) {
+    } catch (\Throwable $e) {
         // Log error
     }
 } elseif ($equipment_code !== '') {
@@ -55,7 +55,7 @@ if ($equipment_id > 0) {
         $stmt->execute([$result['url'], $equipment_code]);
         $stmt2 = $pdo->prepare("UPDATE inspection_items SET image_url = ? WHERE asset_code = ?");
         $stmt2->execute([$result['url'], $equipment_code]);
-    } catch (\Exception $e) {
+    } catch (\Throwable $e) {
         // Log error
     }
 }

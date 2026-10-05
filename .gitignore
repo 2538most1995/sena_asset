@@ -5,3 +5,9 @@
 *.log
 .idea/
 .vscode/
+
+# Database configuration overrides (never overwritten by git pull)
+config/db_config.php
+config/database.local.php
+config/production.php
+.env

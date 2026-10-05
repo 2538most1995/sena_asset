@@ -82,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
                 $pdo->commit();
                 $message = "Successfully imported $successCount records!";
                 $messageType = "success";
-            } catch (Exception $e) {
+            } catch (\Throwable $e) {
                 $pdo->rollBack();
                 $message = "Error importing data: " . $e->getMessage();
                 $messageType = "error";

@@ -90,7 +90,7 @@ try {
         $locations = [];
         $existing_years = [2568];
     }
-} catch (\Exception $e) {
+} catch (\Throwable $e) {
     $preview_items = [];
     $locations = [];
     $existing_years = [2568];

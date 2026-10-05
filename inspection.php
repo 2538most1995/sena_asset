@@ -85,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $flash_msg = "นำเข้าและคัดลอกรายการตรวจครุภัณฑ์จำนวน $copied_count รายการ จากปีงบประมาณ $source_year มายังปีงบประมาณ $target_year เรียบร้อยแล้ว" . ($reset_status ? ' (รีเซ็ตสถานะเป็นรอตรวจนับใหม่)' : '');
                 $flash_type = 'success';
             }
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             $flash_msg = "เกิดข้อผิดพลาดในการคัดลอก: " . $e->getMessage();
             $flash_type = 'error';
@@ -136,7 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $year = $target_year;
                 $flash_msg = "เพิ่มรายการตรวจครุภัณฑ์ '$item_name' สำหรับปีงบประมาณ $target_year เรียบร้อยแล้ว";
                 $flash_type = 'success';
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 $flash_msg = "เกิดข้อผิดพลาด: " . $e->getMessage();
                 $flash_type = 'error';
             }
@@ -171,7 +171,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 }
                 $flash_msg = "อัปเดตรายละเอียดรายการตรวจเรียบร้อยแล้ว";
                 $flash_type = 'success';
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 $flash_msg = "เกิดข้อผิดพลาด: " . $e->getMessage();
                 $flash_type = 'error';
             }
@@ -185,7 +185,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $stmt->execute([$id]);
                 $flash_msg = "ลบรายการตรวจครุภัณฑ์ออกจากบัญชีเรียบร้อยแล้ว";
                 $flash_type = 'success';
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 $flash_msg = "เกิดข้อผิดพลาด: " . $e->getMessage();
                 $flash_type = 'error';
             }
@@ -266,7 +266,7 @@ try {
     // Distinct years in database
     $existing_years = $pdo->query("SELECT DISTINCT fiscal_year FROM inspection_items WHERE fiscal_year IS NOT NULL ORDER BY fiscal_year DESC")->fetchAll(PDO::FETCH_COLUMN);
 
-} catch (\Exception $e) {
+} catch (\Throwable $e) {
     $total_items = 0;
     $stat_total = 0;
     $stat_usable = 0;
