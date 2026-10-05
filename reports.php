@@ -49,7 +49,7 @@ $print_url='?'.http_build_query(array_merge(array_diff_key($_GET,['export'=>true
 if($is_export){
  header('Content-Type: text/csv; charset=utf-8');header('Content-Disposition: attachment; filename="sena_'.$source.'_'.date('Ymd_His').'.csv"');
  $out=fopen('php://output','w');fwrite($out,"\xEF\xBB\xBF");
- fputcsv($out,['ลำดับ','รหัสครุภัณฑ์','รายการ','หมวดทะเบียน','ประเภทหัวกระดาษ','สถานที่','สถานะ','ราคา','ปีงบประมาณ','ชีตต้นฉบับ','แถวต้นฉบับ','หมายเหตุ','แหล่งข้อมูลสถานที่'],',','"','');
+ fputcsv($out,['ลำดับ','รหัสครุภัณฑ์','รายการ','หมวดทะเบียน','ประเภทหัวกระดาษ','สถานที่/ผู้รับผิดชอบ','สถานะ','ราคา','ปีงบประมาณ','ชีตต้นฉบับ','แถวต้นฉบับ','หมายเหตุ','แหล่งข้อมูลสถานที่/ผู้รับผิดชอบ'],',','"','');
  foreach($preview_items as $i=>$r)fputcsv($out,array_map('sena_csv_cell',[$source==='registry'?$i+1:$r['item_number'],$r['asset_code'],$r['item_name'],$r['category'],$r['asset_type'],$r['location'],sena_report_status($r,$source),$r['price'],$r['fiscal_year'],$r['source_sheet'],$r['source_row'],$r['remarks'],$source==='inspection'?sena_inspection_location_origin($r):'ทะเบียนหลัก']),',','"','');
  fclose($out);exit;
 }
@@ -103,7 +103,7 @@ include __DIR__ . '/includes/header.php';
             <label class="text-xs">หมวด <select name="cat" class="border rounded-xl px-3 py-2 max-w-48"><option value="">ทั้งหมด</option><?php foreach($category_options as $cat):?><option value="<?=htmlspecialchars($cat)?>" <?=$filter_cat===$cat?'selected':''?>><?=htmlspecialchars($cat)?></option><?php endforeach;?></select></label>
             <!-- Location -->
             <div class="flex items-center gap-2">
-                <span class="text-xs font-medium text-slate-500">สถานที่ใช้งาน</span>
+                <span class="text-xs font-medium text-slate-500">สถานที่/ผู้รับผิดชอบ</span>
                 <select name="loc" class="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500 max-w-[170px]">
                     <option value="">ทั้งหมด</option>
                     <?php foreach ($locations as $l): ?>
@@ -189,7 +189,7 @@ include __DIR__ . '/includes/header.php';
                             <th class="py-2.5 px-3 border-r border-slate-300 whitespace-nowrap">รายการครุภัณฑ์</th>
                             <th class="py-2.5 px-3 border-r border-slate-300 whitespace-nowrap">หมวด</th>
                             <th class="py-2.5 px-3 border-r border-slate-300">ประเภทหัวกระดาษ</th>
-                            <th class="py-2.5 px-3 border-r border-slate-300 whitespace-nowrap">สถานที่ใช้งาน</th>
+                            <th class="py-2.5 px-3 border-r border-slate-300 whitespace-nowrap">สถานที่/ผู้รับผิดชอบ</th>
                             <th class="py-2.5 px-3 border-r border-slate-300 text-center whitespace-nowrap">สถานะ</th>
                             <th class="py-2.5 px-3 border-r border-slate-300 text-center whitespace-nowrap">ปีงบฯ</th>
                             <th class="py-2.5 px-3 text-right whitespace-nowrap">มูลค่า (บาท)</th>

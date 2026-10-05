@@ -263,7 +263,7 @@ include __DIR__ . '/includes/header.php';
                 <i class="fa-solid fa-magnifying-glass"></i>
             </span>
             <input type="text" name="search" value="<?= htmlspecialchars($search) ?>" 
-                   placeholder="ค้นหารหัสครุภัณฑ์ / ชื่อรายการ / สถานที่" 
+                   placeholder="ค้นหารหัสครุภัณฑ์ / ชื่อรายการ / สถานที่/ผู้รับผิดชอบ" 
                    class="w-full bg-slate-50 border border-slate-200 pl-10 pr-4 py-2.5 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-slate-700">
         </div>
 
@@ -288,7 +288,7 @@ include __DIR__ . '/includes/header.php';
 
             <!-- Location Filter -->
             <select name="loc" class="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 max-w-[180px]">
-                <option value="">สถานที่: ทั้งหมด</option>
+                <option value="">สถานที่/ผู้รับผิดชอบ: ทั้งหมด</option>
                 <?php foreach ($locations as $loc): ?>
                     <option value="<?= htmlspecialchars($loc) ?>" <?= $filter_loc === $loc ? 'selected' : '' ?>><?= htmlspecialchars($loc) ?></option>
                 <?php endforeach; ?>
@@ -438,7 +438,7 @@ include __DIR__ . '/includes/header.php';
                         </th>
                         <th class="py-3 px-3 whitespace-nowrap">หมวด</th>
                         <th class="py-3 px-3 whitespace-nowrap cursor-pointer hover:text-indigo-600">
-                            สถานที่ใช้งาน <i class="fa-solid fa-sort text-[10px] ml-0.5 text-slate-300"></i>
+                            สถานที่/ผู้รับผิดชอบ <i class="fa-solid fa-sort text-[10px] ml-0.5 text-slate-300"></i>
                         </th>
                         <th class="py-3 px-3 whitespace-nowrap text-right cursor-pointer hover:text-indigo-600">
                             ราคา <i class="fa-solid fa-sort text-[10px] ml-0.5 text-slate-300"></i>
@@ -634,7 +634,7 @@ include __DIR__ . '/includes/header.php';
                     </div>
 
                     <div class="py-2 border-t border-slate-200/60 flex items-center justify-between">
-                        <span class="text-slate-400">สถานที่ใช้งาน</span>
+                        <span class="text-slate-400">สถานที่/ผู้รับผิดชอบ</span>
                         <span id="modal-dt-loc" class="font-medium text-slate-800 flex items-center gap-1">
                             <i class="fa-solid fa-location-dot text-rose-500 text-[11px]"></i>
                             <span>สกร.อำเภอเสนา</span>
@@ -739,8 +739,8 @@ include __DIR__ . '/includes/header.php';
                 </div>
 
                 <div>
-                    <label class="block text-slate-600 font-medium mb-1">สถานที่ใช้งาน</label>
-                    <input type="text" name="location" list="loc-suggestions" placeholder="เช่น ห้องธุรการ, ห้องประชุม" 
+                    <label class="block text-slate-600 font-medium mb-1">สถานที่/ผู้รับผิดชอบ</label>
+                    <input type="text" name="location" list="loc-suggestions" placeholder="เช่น ห้องธุรการ หรือ ฉันทนา" 
                            class="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500">
                     <datalist id="loc-suggestions">
                         <?php foreach ($locations as $l): ?>
@@ -848,7 +848,7 @@ include __DIR__ . '/includes/header.php';
                 </div>
 
                 <div>
-                    <label class="block text-slate-600 font-medium mb-1">สถานที่ใช้งาน</label>
+                    <label class="block text-slate-600 font-medium mb-1">สถานที่/ผู้รับผิดชอบ</label>
                     <input type="text" name="location" id="edit-loc" list="loc-suggestions" 
                            class="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500">
                 </div>

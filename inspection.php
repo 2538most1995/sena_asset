@@ -350,9 +350,9 @@ include __DIR__ . '/includes/header.php';
 
             <!-- Location -->
             <div class="flex items-center gap-1.5">
-                <span class="text-xs font-medium text-slate-500 hidden sm:inline">สถานที่</span>
+                <span class="text-xs font-medium text-slate-500 hidden sm:inline">สถานที่/ผู้รับผิดชอบ</span>
                 <select name="loc" onchange="document.getElementById('filter-form').submit()" class="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-2.5 py-1.5 sm:py-2 focus:ring-2 focus:ring-indigo-500 max-w-[150px] sm:max-w-[180px]">
-                    <option value="">ทุกสถานที่</option>
+                    <option value="">ทุกสถานที่/ผู้รับผิดชอบ</option>
                     <?php foreach ($locations as $l): ?>
                         <option value="<?= htmlspecialchars($l) ?>" <?= $filter_loc === $l ? 'selected' : '' ?>><?= htmlspecialchars($l) ?></option>
                     <?php endforeach; ?>
@@ -849,7 +849,7 @@ include __DIR__ . '/includes/header.php';
                     <th class="py-3 px-3 w-10 text-center">รูป</th>
                     <th class="py-3 px-3 whitespace-nowrap">รหัสครุภัณฑ์</th>
                     <th class="py-3 px-3 whitespace-nowrap">รายการ</th>
-                    <th class="py-3 px-3 whitespace-nowrap">สถานที่</th>
+                    <th class="py-3 px-3 whitespace-nowrap">สถานที่/ผู้รับผิดชอบ</th>
                     <th class="py-3 px-2 text-center text-emerald-600 whitespace-nowrap">ใช้ได้</th>
                     <th class="py-3 px-2 text-center text-rose-600 whitespace-nowrap">ชำรุด</th>
                     <th class="py-3 px-2 text-center text-amber-600 whitespace-nowrap">เสื่อมคุณภาพ</th>
@@ -1290,8 +1290,8 @@ include __DIR__ . '/includes/header.php';
 
             <div class="grid grid-cols-2 gap-3">
                 <div>
-                    <label class="block text-slate-600 font-medium mb-1">สถานที่ใช้งาน</label>
-                    <input type="text" name="location" list="loc-list" placeholder="เช่น ห้องธุรการ" 
+                    <label class="block text-slate-600 font-medium mb-1">สถานที่/ผู้รับผิดชอบ</label>
+                    <input type="text" name="location" list="loc-list" placeholder="เช่น ห้องธุรการ หรือ ฉันทนา" 
                            class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500">
                     <datalist id="loc-list">
                         <?php foreach ($locations as $l): ?>
@@ -1361,7 +1361,7 @@ include __DIR__ . '/includes/header.php';
                 <div><label class="block text-slate-600 font-medium mb-1">หมวด</label><input type="text" name="category" id="edit-ins-category" list="cat-list" class="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-slate-800"></div>
                 <div><label class="block text-slate-600 font-medium mb-1">รหัสสินทรัพย์</label><input type="text" name="asset_id_code" id="edit-ins-asset-id" class="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-slate-800"></div>
                 <div>
-                    <label class="block text-slate-600 font-medium mb-1">สถานที่ใช้งาน</label>
+                    <label class="block text-slate-600 font-medium mb-1">สถานที่/ผู้รับผิดชอบ</label>
                     <input type="text" name="location" id="edit-ins-loc" class="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500">
                 </div>
             </div>
