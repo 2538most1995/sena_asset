@@ -21,6 +21,14 @@ $default_settings = [
     'logo_url' => 'assets/img/dole_logo.png'
 ];
 
+$default_roles = [
+    'เจ้าหน้าที่พัสดุ',
+    'ผู้อำนวยการ สกร.ระดับอำเภอเสนา',
+    'เจ้าหน้าที่ตรวจสอบ',
+    'ผู้ดูแลระบบ',
+    'ครู / บุคลากรทางการศึกษา'
+];
+
 if (file_exists($config_file)) {
     $settings = json_decode(file_get_contents($config_file), true) ?: $default_settings;
     if (empty($settings['logo_url'])) {
@@ -29,6 +37,19 @@ if (file_exists($config_file)) {
 } else {
     $settings = $default_settings;
 }
+
+$saved_roles = $settings['roles'] ?? $default_roles;
+if (!is_array($saved_roles) || empty($saved_roles)) {
+    $saved_roles = $default_roles;
+}
+$all_roles = array_values(array_unique(array_filter(array_merge($default_roles, $saved_roles))));
+try {
+    if ($pdo) {
+        $stmt_roles = $pdo->query("SELECT DISTINCT role FROM users WHERE role IS NOT NULL AND role != ''");
+        $db_roles = $stmt_roles->fetchAll(PDO::FETCH_COLUMN);
+        $all_roles = array_values(array_unique(array_filter(array_merge($all_roles, $db_roles))));
+    }
+} catch (\Exception $e) {}
 
 $message = '';
 $message_type = 'success';
@@ -69,7 +90,8 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
             'director_position' => trim($_POST['director_position'] ?? $default_settings['director_position']),
             'officer_name' => trim($_POST['officer_name'] ?? $default_settings['officer_name']),
             'officer_position' => trim($_POST['officer_position'] ?? $default_settings['officer_position']),
-            'logo_url' => $current_logo
+            'logo_url' => $current_logo,
+            'roles' => $all_roles
         ];
         file_put_contents($config_file, json_encode($settings, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
         if ($message_type !== 'error') {
@@ -77,10 +99,55 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
         }
         $active_tab = 'org';
 
+    } elseif ($action === 'add_role') {
+        $new_role = trim($_POST['new_role'] ?? '');
+        if ($new_role !== '') {
+            if (!in_array($new_role, $all_roles, true)) {
+                $all_roles[] = $new_role;
+                $settings['roles'] = $all_roles;
+                file_put_contents($config_file, json_encode($settings, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+                $message = "เพิ่มบทบาท/ตำแหน่ง '$new_role' เข้าสู่ระบบเรียบร้อยแล้ว";
+                $message_type = 'success';
+            } else {
+                $message = "บทบาท/ตำแหน่ง '$new_role' มีอยู่ในระบบแล้ว";
+                $message_type = 'error';
+            }
+        }
+        $active_tab = 'users';
+
+    } elseif ($action === 'delete_role') {
+        $del_role = trim($_POST['role_name'] ?? '');
+        if ($del_role !== '') {
+            $user_count = 0;
+            try {
+                if ($pdo) {
+                    $chk = $pdo->prepare("SELECT COUNT(*) FROM users WHERE role = ?");
+                    $chk->execute([$del_role]);
+                    $user_count = (int)$chk->fetchColumn();
+                }
+            } catch (\Exception $e) {}
+
+            if ($user_count > 0) {
+                $message = "ไม่สามารถลบตำแหน่ง '$del_role' ได้ เนื่องจากมีผู้ใช้งาน $user_count คนกำลังใช้งานอยู่";
+                $message_type = 'error';
+            } else {
+                $all_roles = array_values(array_diff($all_roles, [$del_role]));
+                $settings['roles'] = $all_roles;
+                file_put_contents($config_file, json_encode($settings, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+                $message = "ลบตำแหน่ง '$del_role' ออกจากตัวเลือกเรียบร้อยแล้ว";
+                $message_type = 'success';
+            }
+        }
+        $active_tab = 'users';
+
     } elseif ($action === 'create_user') {
         $username = trim($_POST['username'] ?? '');
         $fullname = trim($_POST['fullname'] ?? '');
         $role = trim($_POST['role'] ?? 'เจ้าหน้าที่พัสดุ');
+        $custom_role = trim($_POST['custom_role'] ?? '');
+        if ($role === '__custom__' && $custom_role !== '') {
+            $role = $custom_role;
+        }
         $password = trim($_POST['password'] ?? '');
 
         if ($username === '' || $fullname === '' || $password === '') {
@@ -98,7 +165,15 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
                     $hashed = password_hash($password, PASSWORD_DEFAULT);
                     $stmt = $pdo->prepare("INSERT INTO users (username, password, fullname, role) VALUES (?, ?, ?, ?)");
                     $stmt->execute([$username, $hashed, $fullname, $role]);
-                    $message = "เพิ่มผู้ใช้งาน '$fullname' (@$username) เข้าสู่ระบบเรียบร้อยแล้ว";
+
+                    // Persist new role if custom
+                    if ($role !== '' && !in_array($role, $all_roles, true)) {
+                        $all_roles[] = $role;
+                        $settings['roles'] = $all_roles;
+                        file_put_contents($config_file, json_encode($settings, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+                    }
+
+                    $message = "เพิ่มผู้ใช้งาน '$fullname' (@$username) ตำแหน่ง '$role' เข้าสู่ระบบเรียบร้อยแล้ว";
                     $message_type = 'success';
                 }
             } catch (\Exception $e) {
@@ -113,6 +188,10 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
         $username = trim($_POST['username'] ?? '');
         $fullname = trim($_POST['fullname'] ?? '');
         $role = trim($_POST['role'] ?? 'เจ้าหน้าที่พัสดุ');
+        $custom_role = trim($_POST['custom_role'] ?? '');
+        if ($role === '__custom__' && $custom_role !== '') {
+            $role = $custom_role;
+        }
         $new_password = trim($_POST['password'] ?? '');
 
         if ($id > 0 && $username !== '' && $fullname !== '') {
@@ -132,7 +211,14 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
                         $stmt = $pdo->prepare("UPDATE users SET username = ?, fullname = ?, role = ? WHERE id = ?");
                         $stmt->execute([$username, $fullname, $role, $id]);
                     }
-                    
+
+                    // Persist new role if custom
+                    if ($role !== '' && !in_array($role, $all_roles, true)) {
+                        $all_roles[] = $role;
+                        $settings['roles'] = $all_roles;
+                        file_put_contents($config_file, json_encode($settings, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+                    }
+
                     // If current logged in user was edited, update session
                     if (isset($_SESSION['user_id']) && (int)$_SESSION['user_id'] === $id) {
                         $_SESSION['username'] = $username;
@@ -480,6 +566,49 @@ include __DIR__ . '/includes/header.php';
                     </tbody>
                 </table>
             </div>
+
+            <!-- ROLE & POSITION MANAGEMENT BADGES -->
+            <div class="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3 mt-6">
+                <div class="flex items-center justify-between flex-wrap gap-2">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs shadow-2xs">
+                            <i class="fa-solid fa-id-badge"></i>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-slate-800 text-xs sm:text-sm">บทบาท / ตำแหน่งในระบบ</h4>
+                            <p class="text-[11px] text-slate-400">กำหนดตำแหน่งที่ต้องการใช้งาน สามารถเพิ่มเติมได้ตลอดเวลา</p>
+                        </div>
+                    </div>
+                    <button type="button" onclick="openAddRoleModal()" class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-2xs flex items-center gap-1.5 transition-all cursor-pointer">
+                        <i class="fa-solid fa-plus text-[10px]"></i>
+                        <span>+ เพิ่มตำแหน่งใหม่</span>
+                    </button>
+                </div>
+                <div class="flex flex-wrap gap-2 pt-1">
+                    <?php foreach ($all_roles as $r): 
+                        $user_cnt = 0;
+                        foreach ($users_list as $usr) {
+                            if ($usr['role'] === $r) $user_cnt++;
+                        }
+                        $is_system_core = in_array($r, ['เจ้าหน้าที่พัสดุ', 'ผู้ดูแลระบบ']);
+                    ?>
+                    <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs text-xs text-slate-700">
+                        <i class="fa-solid fa-user-tag text-indigo-500 text-[10px]"></i>
+                        <span class="font-medium"><?= htmlspecialchars($r) ?></span>
+                        <span class="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-500 font-mono" title="จำนวนผู้ใช้งานตำแหน่งนี้"><?= $user_cnt ?> คน</span>
+                        <?php if ($user_cnt === 0 && !$is_system_core): ?>
+                        <form method="POST" action="settings.php" class="inline" onsubmit="return confirm('คุณต้องการลบตำแหน่ง &quot;<?= htmlspecialchars($r) ?>&quot; ออกจากตัวเลือกใช่หรือไม่?')">
+                            <input type="hidden" name="action" value="delete_role">
+                            <input type="hidden" name="role_name" value="<?= htmlspecialchars($r) ?>">
+                            <button type="submit" class="text-slate-300 hover:text-rose-500 transition-colors ml-0.5 cursor-pointer" title="ลบตำแหน่งนี้">
+                                <i class="fa-solid fa-xmark text-[11px]"></i>
+                            </button>
+                        </form>
+                        <?php endif; ?>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
         </div>
 
         <!-- TAB 3: เปลี่ยนรหัสผ่านส่วนตัว -->
@@ -638,13 +767,23 @@ include __DIR__ . '/includes/header.php';
             </div>
 
             <div>
-                <label class="block text-slate-600 font-medium mb-1">บทบาท / ตำแหน่ง *</label>
-                <select name="role" class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500">
-                    <option value="เจ้าหน้าที่พัสดุ">เจ้าหน้าที่พัสดุ</option>
-                    <option value="ผู้อำนวยการ สกร.ระดับอำเภอเสนา">ผู้อำนวยการ สกร.ระดับอำเภอเสนา</option>
-                    <option value="เจ้าหน้าที่ตรวจสอบ">เจ้าหน้าที่ตรวจสอบ</option>
-                    <option value="ผู้ดูแลระบบ">ผู้ดูแลระบบ</option>
+                <div class="flex items-center justify-between mb-1">
+                    <label class="block text-slate-600 font-medium">บทบาท / ตำแหน่ง *</label>
+                    <button type="button" onclick="showAddCustomRoleInput()" class="text-indigo-600 hover:text-indigo-800 text-[11px] font-medium transition-colors cursor-pointer">
+                        + พิมพ์ตำแหน่งใหม่
+                    </button>
+                </div>
+                <select name="role" id="add-user-role" onchange="handleAddRoleSelectChange(this)" class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500">
+                    <?php foreach ($all_roles as $r): ?>
+                    <option value="<?= htmlspecialchars($r) ?>"><?= htmlspecialchars($r) ?></option>
+                    <?php endforeach; ?>
+                    <option value="__custom__">➕ ระบุตำแหน่งใหม่เอง...</option>
                 </select>
+                <div id="add-user-custom-role-wrap" class="hidden mt-2">
+                    <input type="text" name="custom_role" id="add-user-custom-role-input" placeholder="พิมพ์ชื่อบทบาท/ตำแหน่งใหม่ เช่น ครู กศน.ตำบล, เจ้าหน้าที่ธุรการ" 
+                           class="w-full bg-indigo-50/50 border border-indigo-200 px-3.5 py-2 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500 text-xs">
+                    <p class="text-[10px] text-indigo-600 mt-1">* ตำแหน่งใหม่นี้จะถูกบันทึกลงในระบบและสามารถนำไปเลือกใช้ได้ทันที</p>
+                </div>
             </div>
 
             <div>
@@ -697,13 +836,23 @@ include __DIR__ . '/includes/header.php';
             </div>
 
             <div>
-                <label class="block text-slate-600 font-medium mb-1">บทบาท / ตำแหน่ง *</label>
-                <select name="role" id="edit-user-role" class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500">
-                    <option value="เจ้าหน้าที่พัสดุ">เจ้าหน้าที่พัสดุ</option>
-                    <option value="ผู้อำนวยการ สกร.ระดับอำเภอเสนา">ผู้อำนวยการ สกร.ระดับอำเภอเสนา</option>
-                    <option value="เจ้าหน้าที่ตรวจสอบ">เจ้าหน้าที่ตรวจสอบ</option>
-                    <option value="ผู้ดูแลระบบ">ผู้ดูแลระบบ</option>
+                <div class="flex items-center justify-between mb-1">
+                    <label class="block text-slate-600 font-medium">บทบาท / ตำแหน่ง *</label>
+                    <button type="button" onclick="showEditCustomRoleInput()" class="text-indigo-600 hover:text-indigo-800 text-[11px] font-medium transition-colors cursor-pointer">
+                        + พิมพ์ตำแหน่งใหม่
+                    </button>
+                </div>
+                <select name="role" id="edit-user-role" onchange="handleEditRoleSelectChange(this)" class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500">
+                    <?php foreach ($all_roles as $r): ?>
+                    <option value="<?= htmlspecialchars($r) ?>"><?= htmlspecialchars($r) ?></option>
+                    <?php endforeach; ?>
+                    <option value="__custom__">➕ ระบุตำแหน่งใหม่เอง...</option>
                 </select>
+                <div id="edit-user-custom-role-wrap" class="hidden mt-2">
+                    <input type="text" name="custom_role" id="edit-user-custom-role-input" placeholder="พิมพ์ชื่อบทบาท/ตำแหน่งใหม่ เช่น กรรมการตรวจนับ, เจ้าหน้าที่การเงิน" 
+                           class="w-full bg-indigo-50/50 border border-indigo-200 px-3.5 py-2 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500 text-xs">
+                    <p class="text-[10px] text-indigo-600 mt-1">* ตำแหน่งใหม่นี้จะถูกบันทึกลงในระบบและสามารถนำไปเลือกใช้ได้ทันที</p>
+                </div>
             </div>
 
             <div>
@@ -718,6 +867,43 @@ include __DIR__ . '/includes/header.php';
                 </button>
                 <button type="submit" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-xs transition-colors">
                     บันทึกการแก้ไข
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL: เพิ่มบทบาท / ตำแหน่งใหม่ -->
+<div id="add-role-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center text-sm">
+                    <i class="fa-solid fa-id-badge"></i>
+                </div>
+                <h3 class="font-bold text-slate-800 text-sm">เพิ่มบทบาท / ตำแหน่งใหม่</h3>
+            </div>
+            <button onclick="closeAddRoleModal()" class="text-slate-400 hover:text-slate-600">
+                <i class="fa-solid fa-xmark text-sm"></i>
+            </button>
+        </div>
+
+        <form method="POST" action="settings.php" class="p-5 space-y-4 text-xs">
+            <input type="hidden" name="action" value="add_role">
+            
+            <div>
+                <label class="block text-slate-600 font-medium mb-1">ชื่อบทบาท / ตำแหน่งที่ต้องการเพิ่ม *</label>
+                <input type="text" name="new_role" id="new-role-input" required placeholder="เช่น ครู กศน.ตำบล, เจ้าหน้าที่การเงิน, กรรมการตรวจรับ" 
+                       class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500">
+                <p class="text-[11px] text-slate-400 mt-1.5">หลังจากเพิ่มแล้ว ตำแหน่งนี้จะปรากฏในตัวเลือกของหน้าเพิ่ม/แก้ไขผู้ใช้งานโดยอัตโนมัติ</p>
+            </div>
+
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                <button type="button" onclick="closeAddRoleModal()" class="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors">
+                    ยกเลิก
+                </button>
+                <button type="submit" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-xs transition-colors">
+                    บันทึกตำแหน่ง
                 </button>
             </div>
         </form>
@@ -740,17 +926,105 @@ function switchTab(tab) {
 }
 
 function openAddUserModal() {
+    const roleSelect = document.getElementById('add-user-role');
+    const roleWrap = document.getElementById('add-user-custom-role-wrap');
+    const roleInput = document.getElementById('add-user-custom-role-input');
+    if (roleSelect) roleSelect.selectedIndex = 0;
+    if (roleWrap) roleWrap.classList.add('hidden');
+    if (roleInput) { roleInput.required = false; roleInput.value = ''; }
     document.getElementById('add-user-modal').classList.remove('hidden');
 }
 function closeAddUserModal() {
     document.getElementById('add-user-modal').classList.add('hidden');
 }
 
+function openAddRoleModal() {
+    document.getElementById('new-role-input').value = '';
+    document.getElementById('add-role-modal').classList.remove('hidden');
+    setTimeout(() => {
+        const inp = document.getElementById('new-role-input');
+        if (inp) inp.focus();
+    }, 50);
+}
+function closeAddRoleModal() {
+    document.getElementById('add-role-modal').classList.add('hidden');
+}
+
+function handleAddRoleSelectChange(select) {
+    const wrap = document.getElementById('add-user-custom-role-wrap');
+    const input = document.getElementById('add-user-custom-role-input');
+    if (select.value === '__custom__') {
+        wrap.classList.remove('hidden');
+        input.required = true;
+        input.focus();
+    } else {
+        wrap.classList.add('hidden');
+        input.required = false;
+        input.value = '';
+    }
+}
+
+function showAddCustomRoleInput() {
+    const select = document.getElementById('add-user-role');
+    select.value = '__custom__';
+    handleAddRoleSelectChange(select);
+}
+
+function handleEditRoleSelectChange(select) {
+    const wrap = document.getElementById('edit-user-custom-role-wrap');
+    const input = document.getElementById('edit-user-custom-role-input');
+    if (select.value === '__custom__') {
+        wrap.classList.remove('hidden');
+        input.required = true;
+        input.focus();
+    } else {
+        wrap.classList.add('hidden');
+        input.required = false;
+        input.value = '';
+    }
+}
+
+function showEditCustomRoleInput() {
+    const select = document.getElementById('edit-user-role');
+    select.value = '__custom__';
+    handleEditRoleSelectChange(select);
+}
+
 function openEditUserModal(user) {
     document.getElementById('edit-user-id').value = user.id;
     document.getElementById('edit-user-username').value = user.username;
     document.getElementById('edit-user-fullname').value = user.fullname;
-    document.getElementById('edit-user-role').value = user.role || 'เจ้าหน้าที่พัสดุ';
+    
+    const roleSelect = document.getElementById('edit-user-role');
+    const roleWrap = document.getElementById('edit-user-custom-role-wrap');
+    const roleInput = document.getElementById('edit-user-custom-role-input');
+    roleWrap.classList.add('hidden');
+    roleInput.required = false;
+    roleInput.value = '';
+    
+    let found = false;
+    for (let i = 0; i < roleSelect.options.length; i++) {
+        if (roleSelect.options[i].value === user.role) {
+            roleSelect.selectedIndex = i;
+            found = true;
+            break;
+        }
+    }
+    if (!found && user.role) {
+        const opt = document.createElement('option');
+        opt.value = user.role;
+        opt.textContent = user.role;
+        const customOpt = roleSelect.querySelector('option[value="__custom__"]');
+        if (customOpt) {
+            roleSelect.insertBefore(opt, customOpt);
+        } else {
+            roleSelect.appendChild(opt);
+        }
+        roleSelect.value = user.role;
+    } else if (!user.role) {
+        roleSelect.selectedIndex = 0;
+    }
+    
     document.getElementById('edit-user-modal').classList.remove('hidden');
 }
 function closeEditUserModal() {
