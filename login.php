@@ -73,129 +73,110 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     </style>
 </head>
-<body class="bg-gradient-to-br from-[#0c0e27] via-[#141846] to-[#1a1b52] text-slate-800 min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+<body class="bg-gradient-to-br from-[#0c0e27] via-[#141846] to-[#1a1b52] text-slate-800 min-h-screen flex flex-col justify-center items-center p-4 sm:p-6 relative overflow-x-hidden">
 
     <!-- Decorative background elements -->
-    <div class="absolute -top-32 -left-32 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none"></div>
-    <div class="absolute -bottom-32 -right-32 w-96 h-96 bg-purple-600/20 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="absolute -top-32 -left-32 w-80 h-80 sm:w-96 sm:h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="absolute -bottom-32 -right-32 w-80 h-80 sm:w-96 sm:h-96 bg-purple-600/20 rounded-full blur-3xl pointer-events-none"></div>
 
-    <div class="w-full max-w-md relative z-10">
+    <div class="w-full max-w-[390px] relative z-10 my-auto">
         
         <!-- Logo & Title -->
-        <div class="text-center mb-6">
-            <div class="w-20 h-20 rounded-3xl bg-white p-2.5 flex items-center justify-center text-3xl mx-auto shadow-xl shadow-indigo-500/20 mb-3.5 overflow-hidden">
+        <div class="text-center mb-5">
+            <div class="w-16 h-16 sm:w-18 sm:h-18 rounded-2xl bg-white p-2 flex items-center justify-center mx-auto shadow-xl shadow-indigo-950/40 border border-white/20 mb-3 overflow-hidden transition-transform duration-200 hover:scale-105">
                 <img src="<?= htmlspecialchars($app_logo) ?>" 
                      alt="SENA Asset" 
                      class="max-w-full max-h-full object-contain"
                      onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                <i class="fa-solid fa-landmark text-[#1d2671] hidden"></i>
+                <i class="fa-solid fa-landmark text-[#1d2671] text-2xl hidden"></i>
             </div>
-            <h1 class="text-2xl font-bold text-white tracking-wide">SENA_Asset</h1>
-            <p class="text-xs text-indigo-200/80 font-light mt-0.5">ระบบบริหารจัดการครุภัณฑ์</p>
-            <p class="text-[11px] text-slate-300 font-light mt-1"><?= htmlspecialchars($app_settings['org_name'] ?? 'สกร.ระดับอำเภอเสนา จังหวัดพระนครศรีอยุธยา') ?></p>
+            <h1 class="text-xl sm:text-2xl font-bold text-white tracking-wide leading-tight">SENA_Asset</h1>
+            <p class="text-xs text-indigo-200/90 font-light mt-0.5">ระบบบริหารจัดการครุภัณฑ์</p>
+            <p class="text-[11px] text-slate-300/80 font-light mt-0.5"><?= htmlspecialchars($app_settings['org_name'] ?? 'สกร.ระดับอำเภอเสนา จังหวัดพระนครศรีอยุธยา') ?></p>
         </div>
 
         <!-- Login Card -->
-        <div class="bg-white/95 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/20">
+        <div class="bg-white/95 backdrop-blur-xl rounded-2xl sm:rounded-3xl p-5 sm:p-7 shadow-2xl border border-white/30">
             
-            <div class="mb-6 text-center">
-                <h2 class="text-base font-bold text-slate-800">เข้าสู่ระบบสำหรับเจ้าหน้าที่</h2>
-                <p class="text-xs text-slate-400 mt-0.5">กรุณากรอกข้อมูลเพื่อเข้าสู่ระบบงาน</p>
+            <div class="mb-5 text-center">
+                <h2 class="text-sm sm:text-base font-bold text-slate-800">เข้าสู่ระบบสำหรับเจ้าหน้าที่</h2>
+                <p class="text-[11px] sm:text-xs text-slate-400 mt-0.5">กรุณากรอกข้อมูลเพื่อเข้าใช้งานระบบ</p>
             </div>
 
             <?php if ($error): ?>
-            <div class="mb-4 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2.5">
+            <div class="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
                 <i class="fa-solid fa-circle-exclamation text-rose-500 text-sm flex-shrink-0"></i>
-                <span><?= htmlspecialchars($error) ?></span>
+                <span class="leading-relaxed"><?= htmlspecialchars($error) ?></span>
             </div>
             <?php endif; ?>
 
-            <form method="POST" action="login.php?redirect=<?= urlencode($redirect) ?>" class="space-y-4">
+            <form method="POST" action="login.php?redirect=<?= urlencode($redirect) ?>" class="space-y-3.5">
                 
                 <!-- Username -->
                 <div>
-                    <label class="block text-xs font-medium text-slate-600 mb-1.5">ชื่อผู้ใช้งาน</label>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">ชื่อผู้ใช้งาน</label>
                     <div class="relative">
                         <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 text-xs">
                             <i class="fa-regular fa-user"></i>
                         </span>
-                        <input type="text" name="username" id="username" required 
-                               placeholder="กรอกชื่อผู้ใช้งาน (เช่น admin)"
-                               class="w-full bg-slate-50 border border-slate-200 pl-10 pr-4 py-2.5 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 transition-all">
+                        <input type="text" name="username" id="username" required autocomplete="username"
+                               placeholder="กรอกชื่อผู้ใช้งาน"
+                               class="w-full bg-slate-50/80 border border-slate-200 pl-10 pr-3.5 py-2.5 rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-600 transition-all">
                     </div>
                 </div>
 
                 <!-- Password -->
                 <div>
-                    <label class="block text-xs font-medium text-slate-600 mb-1.5">รหัสผ่าน</label>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">รหัสผ่าน</label>
                     <div class="relative">
                         <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 text-xs">
                             <i class="fa-solid fa-lock"></i>
                         </span>
-                        <input type="password" name="password" id="password" required 
+                        <input type="password" name="password" id="password" required autocomplete="current-password"
                                placeholder="กรอกรหัสผ่าน"
-                               class="w-full bg-slate-50 border border-slate-200 pl-10 pr-10 py-2.5 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 transition-all">
-                        <button type="button" onclick="togglePasswordVisibility()" class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600">
-                            <i class="fa-regular fa-eye" id="eye-icon"></i>
+                               class="w-full bg-slate-50/80 border border-slate-200 pl-10 pr-10 py-2.5 rounded-xl text-xs sm:text-sm text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-600 transition-all">
+                        <button type="button" onclick="togglePasswordVisibility()" aria-label="แสดงรหัสผ่าน" class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600">
+                            <i class="fa-regular fa-eye text-xs" id="eye-icon"></i>
                         </button>
                     </div>
                 </div>
 
-                <!-- Remember me -->
-                <div class="flex items-center justify-between text-xs">
-                    <label class="flex items-center gap-2 cursor-pointer text-slate-600">
+                <!-- Remember me & Forgot Password -->
+                <div class="flex items-center justify-between text-xs pt-0.5">
+                    <label class="flex items-center gap-2 cursor-pointer text-slate-600 select-none">
                         <input type="checkbox" name="remember" checked class="rounded border-slate-300 text-indigo-600 focus:ring-0">
-                        <span>จดจำการเข้าสู่ระบบ</span>
+                        <span>จดจำฉันไว้</span>
                     </label>
-                    <a href="javascript:void(0)" onclick="alert('หากลืมรหัสผ่าน กรุณาติดต่อผู้ดูแลระบบเพื่อรีเซ็ตรหัสผ่าน')" class="text-indigo-600 hover:text-indigo-700">ลืมรหัสผ่าน?</a>
+                    <a href="javascript:void(0)" onclick="alert('หากลืมรหัสผ่าน กรุณาติดต่อผู้ดูแลระบบเพื่อรีเซ็ตรหัสผ่าน')" class="text-indigo-600 hover:text-indigo-700 transition-colors">ลืมรหัสผ่าน?</a>
                 </div>
 
                 <!-- Submit Button -->
-                <button type="submit" class="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-bold shadow-lg shadow-indigo-600/30 transition-all transform active:scale-98">
-                    เข้าสู่ระบบ
-                </button>
-            </form>
-
-            <!-- Quick Demo Login Helpers -->
-            <div class="mt-6 pt-5 border-t border-slate-100">
-                <p class="text-[11px] text-slate-400 text-center mb-2.5">เลือกบัญชีเพื่อทดสอบเข้าสู่ระบบแบบรวดเร็ว</p>
-                <div class="grid grid-cols-2 gap-2 text-xs">
-                    <button type="button" onclick="fillLogin('admin', 'password')" 
-                            class="p-2 rounded-xl bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 text-left transition-all">
-                        <p class="font-bold text-slate-800 text-[11px]">เจ้าหน้าที่พัสดุ</p>
-                        <p class="text-[10px] text-slate-400">admin / password</p>
-                    </button>
-                    <button type="button" onclick="fillLogin('director', 'password')" 
-                            class="p-2 rounded-xl bg-slate-50 hover:bg-purple-50 border border-slate-200 hover:border-purple-300 text-left transition-all">
-                        <p class="font-bold text-slate-800 text-[11px]">ผู้อำนวยการ</p>
-                        <p class="text-[10px] text-slate-400">director / password</p>
+                <div class="pt-1.5">
+                    <button type="submit" class="w-full py-2.5 sm:py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs sm:text-sm font-semibold shadow-md shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 active:scale-[0.99] cursor-pointer">
+                        <i class="fa-solid fa-arrow-right-to-bracket text-xs"></i>
+                        <span>เข้าสู่ระบบ</span>
                     </button>
                 </div>
-            </div>
+            </form>
 
         </div>
 
         <!-- Footer -->
-        <p class="text-center text-xs text-slate-400 mt-6 font-light">
-            SENA_Asset v1.0.0 &bull; สำนักงานส่งเสริมการเรียนรู้ อำเภอเสนา
+        <p class="text-center text-[11px] text-slate-400/80 mt-5 font-light">
+            SENA_Asset &bull; สกร.ระดับอำเภอเสนา
         </p>
     </div>
 
     <script>
-        function fillLogin(u, p) {
-            document.getElementById('username').value = u;
-            document.getElementById('password').value = p;
-        }
-
         function togglePasswordVisibility() {
             const pwd = document.getElementById('password');
             const icon = document.getElementById('eye-icon');
             if (pwd.type === 'password') {
                 pwd.type = 'text';
-                icon.className = 'fa-regular fa-eye-slash';
+                icon.className = 'fa-regular fa-eye-slash text-xs';
             } else {
                 pwd.type = 'password';
-                icon.className = 'fa-regular fa-eye';
+                icon.className = 'fa-regular fa-eye text-xs';
             }
         }
     </script>
