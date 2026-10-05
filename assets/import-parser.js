@@ -140,6 +140,7 @@ window.SenaImport = (() => {
       const matrix = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {header:1, defval:'', raw:true, blankrows:true});
       const h = matrix.findIndex(row => row.some(v => value(v).includes('ลำดับที่')) && row.some(v => value(v).includes('รายการ')));
       if (h < 0) { warnings.push(`ไม่พบหัวตาราง: ${sheetName}`); continue; }
+      const locationColumn=(matrix[h]||[]).findIndex(v=>/สถานที่|ใช้ประจำที่/.test(value(v)));
       for (let i=h+2; i<matrix.length; i++) {
         const r = matrix[i] || [];
         const n = Number(r[0]);
@@ -147,6 +148,7 @@ window.SenaImport = (() => {
         rows.push({item_number:n,item_name:clean(r[1]),asset_code:clean(r[2]),asset_id_code:clean(r[3]),
           status_usable:mark(r[4]),status_damaged:mark(r[5]),status_degraded:mark(r[6]),
           status_lost:mark(r[7]),status_unused:mark(r[8]),remarks:clean(r[9]),fiscal_year:year,
+          location:locationColumn>=0?clean(r[locationColumn]):null,
           source_file:filename,source_sheet:sheetName,source_row:i+1,source_key:`inspection:${filename}:${year}:${sheetName}:${n}`});
       }
     }

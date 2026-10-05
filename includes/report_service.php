@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__.'/inspection_location.php';
 /** One filter builder for preview, CSV and print; registry and annual inspection stay explicit. */
 function sena_report_query(array $input): array {
     $source=($input['source']??'registry')==='inspection'?'inspection':'registry';
@@ -6,7 +7,11 @@ function sena_report_query(array $input): array {
     $where=['1=1'];$params=[];
     if($source==='inspection'){$where[]='fiscal_year=?';$params[]=$year;}
     foreach(['cat'=>'category','loc'=>'location'] as $key=>$column){
-        $v=trim((string)($input[$key]??''));if($v!==''&&$v!=='ทั้งหมด'){$where[]="$column=?";$params[]=$v;}
+        $v=trim((string)($input[$key]??''));
+        if($v!==''&&$v!=='ทั้งหมด'){
+            $filterColumn=$source==='inspection' && $column==='location'?'effective_location':$column;
+            $where[]="$filterColumn=?";$params[]=$v;
+        }
     }
     $search=trim((string)($input['search']??''));
     if($search!==''){
@@ -29,12 +34,13 @@ function sena_report_query(array $input): array {
         }
     }
     $table=$source==='registry'?'equipment_registry':'inspection_items';
+    $from=$source==='registry'?$table:sena_inspection_source_sql();
     $columns=$source==='registry'
         ? 'id AS item_number,equipment_code AS asset_code,equipment_name AS item_name,category,asset_type,location,status,unit_price AS price,NULL AS fiscal_year,source_sheet,source_row,source_row_end,remarks'
-        : "item_number,asset_code,item_name,category,'' AS asset_type,location,status_usable,status_damaged,status_degraded,status_lost,status_unused,price,fiscal_year,source_sheet,source_row,NULL AS source_row_end,remarks";
+        : "item_number,asset_code,item_name,category,'' AS asset_type,effective_location AS location,location_origin,status_usable,status_damaged,status_degraded,status_lost,status_unused,price,fiscal_year,source_sheet,source_row,NULL AS source_row_end,remarks";
     $order=$source==='registry'?'id':'item_number,id';
     $condition=implode(' AND ',$where);
-    return ['source'=>$source,'year'=>$year,'sql'=>"SELECT $columns FROM $table WHERE $condition ORDER BY $order",'count_sql'=>"SELECT COUNT(*) FROM $table WHERE $condition",'params'=>$params,'table'=>$table];
+    return ['source'=>$source,'year'=>$year,'sql'=>"SELECT $columns FROM $from WHERE $condition ORDER BY $order",'count_sql'=>"SELECT COUNT(*) FROM $from WHERE $condition",'params'=>$params,'table'=>$table];
 }
 function sena_report_status(array $row,string $source): string {
     if($source==='registry')return ['active'=>'ใช้ได้','damaged'=>'ชำรุด','degraded'=>'เสื่อมคุณภาพ','disposed'=>'จำหน่ายแล้ว','unused'=>'ไม่ใช้','unverified'=>'ยังไม่ยืนยัน'][$row['status']??'unverified']??'ยังไม่ยืนยัน';

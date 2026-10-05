@@ -8,6 +8,7 @@ require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/includes/pagination.php';
 require_once __DIR__ . '/config/auth.php';
 require_once __DIR__ . '/includes/image_helper.php';
+require_once __DIR__ . '/includes/inspection_location.php';
 
 $flash_msg = '';
 $flash_type = 'success';
@@ -97,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $asset_code = trim($_POST['asset_code'] ?? '');
         $asset_id_code = trim($_POST['asset_id_code'] ?? '');
         $category = trim($_POST['category'] ?? 'ครุภัณฑ์สำนักงาน');
-        $location = trim($_POST['location'] ?? 'สกร.อำเภอเสนา');
+        $location = trim($_POST['location'] ?? '');
         $price = (float)($_POST['price'] ?? 0);
         $status = $_POST['status'] ?? 'pending';
         $remarks = trim($_POST['remarks'] ?? '');
@@ -205,17 +206,18 @@ $per_page = sena_page_limit($_GET['limit'] ?? 25);
 $page = max(1, (int)($_GET['page'] ?? 1));
 $offset = ($page - 1) * $per_page;
 
+$inspection_source=sena_inspection_source_sql();
 $where = ["fiscal_year = ?"];
 $params = [$year];
 
 if ($search !== '') {
-    $where[] = "(item_name LIKE ? OR asset_code LIKE ? OR location LIKE ?)";
+    $where[] = "(item_name LIKE ? OR asset_code LIKE ? OR effective_location LIKE ?)";
     $params[] = "%$search%";
     $params[] = "%$search%";
     $params[] = "%$search%";
 }
 if ($filter_loc !== '' && $filter_loc !== 'ทั้งหมด') {
-    $where[] = "location = ?";
+    $where[] = "effective_location = ?";
     $params[] = $filter_loc;
 }
 if ($filter_status === 'usable') {
@@ -241,14 +243,14 @@ try {
         throw new \Exception("Database connection not available");
     }
     // Total count for current filter
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM inspection_items WHERE $where_sql");
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM $inspection_source WHERE $where_sql");
     $stmt->execute($params);
     $total_items = (int)$stmt->fetchColumn();
     $paging=sena_page_state($total_items,$per_page,$_GET['page']??1);
     $page=$paging['page'];$offset=$paging['offset'];
 
     // Paginated rows
-    $stmt = $pdo->prepare("SELECT * FROM inspection_items WHERE $where_sql ORDER BY item_number ASC, id ASC LIMIT $per_page OFFSET $offset");
+    $stmt = $pdo->prepare("SELECT * FROM $inspection_source WHERE $where_sql ORDER BY item_number ASC, id ASC LIMIT $per_page OFFSET $offset");
     $stmt->execute($params);
     $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -261,7 +263,8 @@ try {
     $stat_pending = max(0, $stat_total - $stat_checked);
 
     // Locations for dropdown
-    $locations = $pdo->query("SELECT DISTINCT location FROM inspection_items WHERE location IS NOT NULL AND location != '' ORDER BY location ASC")->fetchAll(PDO::FETCH_COLUMN);
+    $loc_stmt=$pdo->prepare("SELECT DISTINCT effective_location FROM $inspection_source WHERE fiscal_year=? AND effective_location IS NOT NULL ORDER BY effective_location");
+    $loc_stmt->execute([$year]);$locations=$loc_stmt->fetchAll(PDO::FETCH_COLUMN);
     $category_options = $pdo->query("SELECT category_name FROM asset_categories ORDER BY category_name")->fetchAll(PDO::FETCH_COLUMN);
 
     // Distinct years in database
@@ -299,6 +302,8 @@ if ($total_pages < 1) $total_pages = 1;
 
 include __DIR__ . '/includes/header.php';
 ?>
+
+<p class="text-xs text-slate-500 px-1">สถานที่ที่บันทึกในบัญชีตรวจจะแสดงตามเดิม ช่องว่างจะอ้างอิงทะเบียนปัจจุบันเฉพาะรหัสที่ตรงและมีสถานที่เดียว ไม่ใช่การยืนยันสถานที่ย้อนหลัง หากจับคู่ไม่ได้จะแสดงว่ายังไม่ระบุสถานที่</p>
 
 <!-- FLASH ALERT -->
 <?php if ($flash_msg): ?>
@@ -737,7 +742,7 @@ include __DIR__ . '/includes/header.php';
 
                             <div class="flex items-center gap-1 text-[11px] text-slate-500 mt-1">
                                 <i class="fa-solid fa-location-dot text-rose-500 text-[10px] flex-shrink-0"></i>
-                                <span class="truncate"><?= htmlspecialchars($it['location'] ?: 'สกร.อำเภอเสนา') ?></span>
+                                <span class="truncate" title="<?= htmlspecialchars(sena_inspection_location_origin($it)) ?>"><?= htmlspecialchars(sena_inspection_location_label($it)) ?></span>
                             </div>
 
                             <?php if (!empty($it['asset_id_code'])): ?>
@@ -898,7 +903,7 @@ include __DIR__ . '/includes/header.php';
                                 <span class="text-[10px] text-indigo-600 ml-1"><i class="fa-solid fa-paperclip"></i></span>
                             <?php endif; ?>
                         </td>
-                        <td class="py-3 px-3 text-slate-600 whitespace-nowrap"><?= htmlspecialchars($it['location'] ?: 'สกร.อำเภอเสนา') ?></td>
+                        <td class="py-3 px-3 text-slate-600 whitespace-nowrap"><?= htmlspecialchars(sena_inspection_location_label($it)) ?><small class="block text-[10px] text-slate-400"><?= htmlspecialchars(sena_inspection_location_origin($it)) ?></small></td>
                         
                         <!-- Status Columns -->
                         <td class="py-3 px-2 text-center" id="td-status-<?= $it['id'] ?>-usable">

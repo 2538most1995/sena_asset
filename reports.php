@@ -35,7 +35,10 @@ $is_print=isset($_GET['print']);$is_export=($_GET['export']??'')==='excel';
 if($is_print||$is_export)$offset=0;
 $sql=$query['sql'];if(!$is_print&&!$is_export)$sql.=" LIMIT $per_page OFFSET $offset";
 $stmt=$pdo->prepare($sql);$stmt->execute($query['params']);$preview_items=$stmt->fetchAll(PDO::FETCH_ASSOC);
-$locations=$pdo->query("SELECT DISTINCT location FROM ".$query['table']." WHERE location IS NOT NULL AND location<>'' ORDER BY location")->fetchAll(PDO::FETCH_COLUMN);
+if($source==='inspection'){
+ $location_stmt=$pdo->prepare('SELECT DISTINCT effective_location FROM '.sena_inspection_source_sql().' WHERE fiscal_year=? AND effective_location IS NOT NULL ORDER BY effective_location');
+ $location_stmt->execute([$year]);$locations=$location_stmt->fetchAll(PDO::FETCH_COLUMN);
+}else $locations=$pdo->query("SELECT DISTINCT location FROM equipment_registry WHERE location IS NOT NULL AND location<>'' ORDER BY location")->fetchAll(PDO::FETCH_COLUMN);
 $category_sql=$source==='registry'
     ? "SELECT category_name FROM asset_categories WHERE registry_enabled=1 UNION SELECT category FROM equipment_registry WHERE category IS NOT NULL AND category<>'' ORDER BY 1"
     : "SELECT DISTINCT category FROM inspection_items WHERE category IS NOT NULL AND category<>'' ORDER BY category";
@@ -46,8 +49,8 @@ $print_url='?'.http_build_query(array_merge(array_diff_key($_GET,['export'=>true
 if($is_export){
  header('Content-Type: text/csv; charset=utf-8');header('Content-Disposition: attachment; filename="sena_'.$source.'_'.date('Ymd_His').'.csv"');
  $out=fopen('php://output','w');fwrite($out,"\xEF\xBB\xBF");
- fputcsv($out,['ลำดับ','รหัสครุภัณฑ์','รายการ','หมวดทะเบียน','ประเภทหัวกระดาษ','สถานที่','สถานะ','ราคา','ปีงบประมาณ','ชีตต้นฉบับ','แถวต้นฉบับ','หมายเหตุ'],',','"','');
- foreach($preview_items as $i=>$r)fputcsv($out,array_map('sena_csv_cell',[$source==='registry'?$i+1:$r['item_number'],$r['asset_code'],$r['item_name'],$r['category'],$r['asset_type'],$r['location'],sena_report_status($r,$source),$r['price'],$r['fiscal_year'],$r['source_sheet'],$r['source_row'],$r['remarks']]),',','"','');
+ fputcsv($out,['ลำดับ','รหัสครุภัณฑ์','รายการ','หมวดทะเบียน','ประเภทหัวกระดาษ','สถานที่','สถานะ','ราคา','ปีงบประมาณ','ชีตต้นฉบับ','แถวต้นฉบับ','หมายเหตุ','แหล่งข้อมูลสถานที่'],',','"','');
+ foreach($preview_items as $i=>$r)fputcsv($out,array_map('sena_csv_cell',[$source==='registry'?$i+1:$r['item_number'],$r['asset_code'],$r['item_name'],$r['category'],$r['asset_type'],$r['location'],sena_report_status($r,$source),$r['price'],$r['fiscal_year'],$r['source_sheet'],$r['source_row'],$r['remarks'],$source==='inspection'?sena_inspection_location_origin($r):'ทะเบียนหลัก']),',','"','');
  fclose($out);exit;
 }
 include __DIR__ . '/includes/header.php';
@@ -172,7 +175,7 @@ include __DIR__ . '/includes/header.php';
                 <h3 class="text-base font-semibold text-slate-800">
                     <?= $source==='registry'?'รายงานทะเบียนครุภัณฑ์หลัก':'รายงานบัญชีตรวจประจำปี' ?> (<?=number_format($report_count)?> รายการ)
                 </h3>
-                <?php if($source==='inspection'):?><p class="text-xs text-slate-600">ปีงบประมาณ <?=$year?></p><?php endif;?>
+                <?php if($source==='inspection'):?><p class="text-xs text-slate-600">ปีงบประมาณ <?=$year?></p><p class="text-xs text-slate-500">สถานที่ว่างอ้างอิงทะเบียนปัจจุบันเมื่อรหัสตรงและมีสถานที่เดียว ไม่ใช่หลักฐานยืนยันสถานที่ย้อนหลัง</p><?php endif;?>
                 <p class="text-[11px] text-slate-500 font-light">ข้อมูล ณ วันที่ <?= date('j') ?> <?= ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][date('n')-1] ?> <?= (date('Y') + 543) ?></p>
             </div>
 
@@ -207,7 +210,7 @@ include __DIR__ . '/includes/header.php';
                                 <td class="py-2 px-3 font-medium border-r border-slate-200"><?= htmlspecialchars($r['item_name']) ?></td>
                                 <td class="py-2 px-3 border-r border-slate-200"><?= htmlspecialchars($r['category'] ?: '—') ?></td>
                                 <td class="py-2 px-3 border-r border-slate-200"><?= htmlspecialchars($r['asset_type'] ?: '—') ?></td>
-                                <td class="py-2 px-3 border-r border-slate-200"><?= htmlspecialchars($r['location'] ?: '—') ?></td>
+                                <td class="py-2 px-3 border-r border-slate-200"><?= htmlspecialchars($r['location'] ?: 'ยังไม่ระบุสถานที่') ?><?php if($source==='inspection'):?><small class="block text-[10px] text-slate-500"><?=htmlspecialchars(sena_inspection_location_origin($r))?></small><?php endif;?></td>
                                 <td class="py-2 px-3 text-center border-r border-slate-200"><span class="px-2 py-0.5 rounded-full text-[10px] font-medium <?= $badge ?>"><?= $st ?></span></td>
                                 <td class="py-2 px-3 text-center border-r border-slate-200"><?= $r['fiscal_year']??'—' ?></td>
                                 <td class="py-2 px-3 text-right font-medium"><?= $r['price']===null?'—':number_format((float)$r['price'],2) ?></td>
