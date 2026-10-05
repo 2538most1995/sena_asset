@@ -5,6 +5,7 @@ $page_title = 'ทะเบียนครุภัณฑ์';
 $page_subtitle = 'ค้นหา ดูรายละเอียด และจัดการข้อมูลครุภัณฑ์ทั้งหมด';
 
 require_once __DIR__ . '/config/database.php';
+require_once __DIR__ . '/includes/pagination.php';
 require_once __DIR__ . '/includes/image_helper.php';
 
 $flash_message = '';
@@ -19,9 +20,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
         $code = trim($_POST['equipment_code'] ?? '');
         $cat = trim($_POST['category'] ?? 'ครุภัณฑ์ทั่วไป');
         $loc = trim($_POST['location'] ?? 'สกร.อำเภอเสนา');
-        $price = (float)($_POST['unit_price'] ?? 0);
+        $price = ($_POST['unit_price'] ?? '') === '' ? null : (float)$_POST['unit_price'];
         $method = trim($_POST['acquisition_method'] ?? 'งปม.');
-        $status = trim($_POST['status'] ?? 'active');
+        $asset_type=trim($_POST['asset_type']??'');
+        $status = trim($_POST['status'] ?? 'unverified');
         $brand = trim($_POST['brand_description'] ?? '');
         $remarks = trim($_POST['remarks'] ?? '');
         $date = trim($_POST['acquisition_date'] ?? date('Y-m-d'));
@@ -37,8 +39,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
 
         if ($name !== '') {
             try {
-                $stmt = $pdo->prepare("INSERT INTO equipment_registry (category, equipment_name, equipment_code, brand_description, unit_price, acquisition_method, location, remarks, acquisition_date, status, image_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$cat, $name, $code, $brand, $price, $method, $loc, $remarks, $date, $status, $uploaded_img]);
+                $stmt = $pdo->prepare("INSERT INTO equipment_registry (asset_type, category, equipment_name, equipment_code, brand_description, unit_price, acquisition_method, location, remarks, acquisition_date, status, image_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$asset_type, $cat, $name, $code, $brand, $price, $method, $loc, $remarks, $date, $status, $uploaded_img]);
 
                 $flash_message = "เพิ่มครุภัณฑ์ '$name' เข้าสู่ระบบเรียบร้อยแล้ว";
             } catch (\Throwable $e) {
@@ -52,8 +54,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
         $code = trim($_POST['equipment_code'] ?? '');
         $cat = trim($_POST['category'] ?? '');
         $loc = trim($_POST['location'] ?? '');
-        $price = (float)($_POST['unit_price'] ?? 0);
-        $status = trim($_POST['status'] ?? 'active');
+        $price = ($_POST['unit_price'] ?? '') === '' ? null : (float)$_POST['unit_price'];
+        $asset_type=trim($_POST['asset_type']??'');
+        $status = trim($_POST['status'] ?? 'unverified');
         $brand = trim($_POST['brand_description'] ?? '');
         $remarks = trim($_POST['remarks'] ?? '');
 
@@ -69,11 +72,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
         if ($id > 0) {
             try {
                 if ($uploaded_img) {
-                    $stmt = $pdo->prepare("UPDATE equipment_registry SET equipment_name=?, equipment_code=?, category=?, location=?, unit_price=?, status=?, brand_description=?, remarks=?, image_url=? WHERE id=?");
-                    $stmt->execute([$name, $code, $cat, $loc, $price, $status, $brand, $remarks, $uploaded_img, $id]);
+                    $stmt = $pdo->prepare("UPDATE equipment_registry SET asset_type=?, equipment_name=?, equipment_code=?, category=?, location=?, unit_price=?, status=?, brand_description=?, remarks=?, image_url=? WHERE id=?");
+                    $stmt->execute([$asset_type, $name, $code, $cat, $loc, $price, $status, $brand, $remarks, $uploaded_img, $id]);
                 } else {
-                    $stmt = $pdo->prepare("UPDATE equipment_registry SET equipment_name=?, equipment_code=?, category=?, location=?, unit_price=?, status=?, brand_description=?, remarks=? WHERE id=?");
-                    $stmt->execute([$name, $code, $cat, $loc, $price, $status, $brand, $remarks, $id]);
+                    $stmt = $pdo->prepare("UPDATE equipment_registry SET asset_type=?, equipment_name=?, equipment_code=?, category=?, location=?, unit_price=?, status=?, brand_description=?, remarks=? WHERE id=?");
+                    $stmt->execute([$asset_type, $name, $code, $cat, $loc, $price, $status, $brand, $remarks, $id]);
                 }
 
                 $flash_message = "อัปเดตข้อมูลครุภัณฑ์เรียบร้อยแล้ว";
@@ -102,7 +105,7 @@ $search = trim($_GET['search'] ?? '');
 $filter_cat = trim($_GET['cat'] ?? '');
 $filter_status = trim($_GET['status'] ?? '');
 $filter_loc = trim($_GET['loc'] ?? '');
-$per_page = max(5, min(100, (int)($_GET['limit'] ?? 10)));
+$per_page = sena_page_limit($_GET['limit'] ?? 25);
 $page = max(1, (int)($_GET['page'] ?? 1));
 $offset = ($page - 1) * $per_page;
 
@@ -119,14 +122,9 @@ if ($filter_cat !== '' && $filter_cat !== 'ทั้งหมด') {
     $where[] = "category = ?";
     $params[] = $filter_cat;
 }
-if ($filter_status !== '' && $filter_status !== 'ทั้งหมด') {
-    if ($filter_status === 'active') {
-        $where[] = "status = 'active'";
-    } elseif ($filter_status === 'damaged') {
-        $where[] = "status = 'damaged'";
-    } elseif ($filter_status === 'degraded') {
-        $where[] = "status = 'degraded'";
-    }
+if (in_array($filter_status,['active','damaged','degraded','disposed','unused','unverified'],true)) {
+    $where[] = 'status = ?';
+    $params[] = $filter_status;
 }
 if ($filter_loc !== '' && $filter_loc !== 'ทั้งหมด') {
     $where[] = "location = ?";
@@ -142,8 +140,10 @@ try {
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM equipment_registry WHERE $where_sql");
     $stmt->execute($params);
     $total_filtered = (int)$stmt->fetchColumn();
+    $paging=sena_page_state($total_filtered,$per_page,$_GET['page']??1);
+    $page=$paging['page'];$offset=$paging['offset'];
 
-    $stmt = $pdo->prepare("SELECT * FROM equipment_registry WHERE $where_sql ORDER BY id ASC LIMIT $per_page OFFSET $offset");
+    $stmt = $pdo->prepare("SELECT id,category,asset_type,equipment_name,equipment_code,brand_description,serial_number,unit_price,acquisition_method,document_number,location,receipt_evidence,change_details,change_document,remarks,acquisition_date,acquisition_date_text,status,image_url,source_file,source_sheet,source_row,source_row_end,source_notes FROM equipment_registry WHERE $where_sql ORDER BY id ASC LIMIT $per_page OFFSET $offset");
     $stmt->execute($params);
     $items = $stmt->fetchAll();
 
@@ -151,7 +151,7 @@ try {
     $s=$pdo->query("SELECT COUNT(*) total,COALESCE(SUM(status='active'),0) active,COALESCE(SUM(status='damaged'),0) damaged,COALESCE(SUM(status='degraded'),0) degraded FROM equipment_registry")->fetch(PDO::FETCH_ASSOC);
     $total_all=(int)$s['total'];$stat_active=(int)$s['active'];$stat_damaged=(int)$s['damaged'];$stat_degraded=(int)$s['degraded'];
 
-    $categories = $pdo->query("SELECT DISTINCT category FROM equipment_registry WHERE category IS NOT NULL AND category != '' ORDER BY category ASC")->fetchAll(PDO::FETCH_COLUMN);
+    $categories = $pdo->query("SELECT category_name FROM asset_categories WHERE registry_enabled=1 UNION SELECT DISTINCT category FROM equipment_registry WHERE category IS NOT NULL AND category != '' ORDER BY 1")->fetchAll(PDO::FETCH_COLUMN);
     $locations = $pdo->query("SELECT DISTINCT location FROM equipment_registry WHERE location IS NOT NULL AND location != '' ORDER BY location ASC")->fetchAll(PDO::FETCH_COLUMN);
 
 } catch (\Throwable $e) {
@@ -270,7 +270,7 @@ include __DIR__ . '/includes/header.php';
         <div class="flex flex-wrap items-center gap-2.5">
             <!-- Category Filter -->
             <select name="cat" class="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                <option value="">ประเภท: ทั้งหมด</option>
+                <option value="">หมวด: ทั้งหมด</option>
                 <?php foreach ($categories as $cat): ?>
                     <option value="<?= htmlspecialchars($cat) ?>" <?= $filter_cat === $cat ? 'selected' : '' ?>><?= htmlspecialchars($cat) ?></option>
                 <?php endforeach; ?>
@@ -279,9 +279,11 @@ include __DIR__ . '/includes/header.php';
             <!-- Status Filter -->
             <select name="status" class="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500">
                 <option value="">สถานะ: ทั้งหมด</option>
-                <option value="active" <?= $filter_status === 'active' ? 'selected' : '' ?>>ใช้ได้ (พร้อมใช้งาน)</option>
+                <option value="unverified" <?= ($filter_status??'') === 'unverified' ? 'selected' : '' ?>>ยังไม่ยืนยัน</option>
+<option value="active" <?= $filter_status === 'active' ? 'selected' : '' ?>>ใช้ได้ (พร้อมใช้งาน)</option>
                 <option value="damaged" <?= $filter_status === 'damaged' ? 'selected' : '' ?>>ชำรุด (รอซ่อม)</option>
-                <option value="degraded" <?= $filter_status === 'degraded' ? 'selected' : '' ?>>เสื่อมคุณภาพ</option>
+                <option value="disposed">&#3592;&#3635;&#3627;&#3609;&#3656;&#3634;&#3618;&#3649;&#3621;&#3657;&#3623;</option><option value="unused">&#3652;&#3617;&#3656;&#3651;&#3594;&#3657;</option>
+<option value="degraded" <?= $filter_status === 'degraded' ? 'selected' : '' ?>>เสื่อมคุณภาพ</option>
             </select>
 
             <!-- Location Filter -->
@@ -339,9 +341,7 @@ include __DIR__ . '/includes/header.php';
                 <div class="flex items-center gap-1.5 text-xs text-slate-400">
                     <span class="hidden sm:inline">แสดง</span>
                     <select onchange="window.location.href='equipment.php?page=1&limit='+this.value+'&search=<?= urlencode($search) ?>&cat=<?= urlencode($filter_cat) ?>&status=<?= urlencode($filter_status) ?>&loc=<?= urlencode($filter_loc) ?>'" class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-slate-600">
-                        <option value="10" <?= $per_page == 10 ? 'selected' : '' ?>>10 รายการ</option>
-                        <option value="25" <?= $per_page == 25 ? 'selected' : '' ?>>25 รายการ</option>
-                        <option value="50" <?= $per_page == 50 ? 'selected' : '' ?>>50 รายการ</option>
+                        <?php foreach(sena_page_sizes() as $size): ?><option value="<?=$size?>" <?=$per_page===$size?'selected':''?>><?=number_format($size)?> รายการ</option><?php endforeach; ?>
                     </select>
                 </div>
             </div>
@@ -359,7 +359,11 @@ include __DIR__ . '/includes/header.php';
                     $cat_info = getCategoryIcon($it['category'] ?? '');
                     $st_badge = 'bg-emerald-50 text-emerald-700 border-emerald-200';
                     $st_label = '● ใช้ได้';
-                    if ($it['status'] === 'damaged') {
+                    if ($it['status'] === 'unverified') {
+                        $st_label='● ยังไม่ยืนยัน';$st_badge='bg-slate-100 text-slate-600 border-slate-200';
+                    } elseif ($it['status'] === 'disposed' || $it['status'] === 'unused') {
+                        $st_label=$it['status']==='disposed'?'● จำหน่ายแล้ว':'● ไม่ใช้';$st_badge='bg-slate-100 text-slate-600 border-slate-200';
+                    } elseif ($it['status'] === 'damaged') {
                         $st_badge = 'bg-rose-50 text-rose-700 border-rose-200';
                         $st_label = '● ชำรุด';
                     } elseif ($it['status'] === 'degraded') {
@@ -368,7 +372,7 @@ include __DIR__ . '/includes/header.php';
                     }
                 ?>
                 <div class="bg-white rounded-2xl border border-slate-200/90 shadow-2xs hover:shadow-md transition-all p-3.5 flex flex-col justify-between cursor-pointer"
-                     onclick="viewItem(<?= htmlspecialchars(json_encode($it), ENT_QUOTES, 'UTF-8') ?>)">
+                     onclick="viewItem({id:<?= (int)$it['id'] ?>})">
                     <div>
                         <div class="flex items-center justify-between gap-2 pb-2 border-b border-slate-100">
                             <span class="font-mono text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md truncate">
@@ -400,9 +404,9 @@ include __DIR__ . '/includes/header.php';
                     </div>
 
                     <div class="pt-2.5 mt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-                        <span class="font-bold text-slate-800">฿<?= number_format((float)$it['unit_price']) ?></span>
+                        <span class="font-bold text-slate-800"><?= $it['unit_price']===null?'ไม่ระบุราคา':'฿'.number_format((float)$it['unit_price'],2) ?></span>
                         <div class="flex items-center gap-1.5" onclick="event.stopPropagation()">
-                            <button type="button" onclick="viewItem(<?= htmlspecialchars(json_encode($it), ENT_QUOTES, 'UTF-8') ?>)" class="p-1.5 rounded-lg text-indigo-600 hover:text-white hover:bg-indigo-600 bg-indigo-50 border border-indigo-100 transition-all shadow-2xs" title="คลิกดูรายละเอียด (ป๊อปอัป)">
+                            <button type="button" onclick="viewItem({id:<?= (int)$it['id'] ?>})" class="p-1.5 rounded-lg text-indigo-600 hover:text-white hover:bg-indigo-600 bg-indigo-50 border border-indigo-100 transition-all shadow-2xs" title="คลิกดูรายละเอียด (ป๊อปอัป)">
                                 <i class="fa-regular fa-eye text-xs"></i>
                             </button>
                             <button type="button" onclick="openEditModal(<?= htmlspecialchars(json_encode($it), ENT_QUOTES, 'UTF-8') ?>)" class="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-slate-100 transition-colors" title="แก้ไข">
@@ -432,7 +436,7 @@ include __DIR__ . '/includes/header.php';
                         <th class="py-3 px-3 whitespace-nowrap cursor-pointer hover:text-indigo-600">
                             รายการ <i class="fa-solid fa-sort text-[10px] ml-0.5 text-slate-300"></i>
                         </th>
-                        <th class="py-3 px-3 whitespace-nowrap">ประเภท</th>
+                        <th class="py-3 px-3 whitespace-nowrap">หมวด</th>
                         <th class="py-3 px-3 whitespace-nowrap cursor-pointer hover:text-indigo-600">
                             สถานที่ใช้งาน <i class="fa-solid fa-sort text-[10px] ml-0.5 text-slate-300"></i>
                         </th>
@@ -456,7 +460,11 @@ include __DIR__ . '/includes/header.php';
                             $cat_info = getCategoryIcon($it['category'] ?? '');
                             $st_badge = 'bg-emerald-50 text-emerald-600 border-emerald-200';
                             $st_label = '● ใช้ได้';
-                            if ($it['status'] === 'damaged') {
+                            if ($it['status'] === 'unverified') {
+                        $st_label='● ยังไม่ยืนยัน';$st_badge='bg-slate-100 text-slate-600 border-slate-200';
+                    } elseif ($it['status'] === 'disposed' || $it['status'] === 'unused') {
+                        $st_label=$it['status']==='disposed'?'● จำหน่ายแล้ว':'● ไม่ใช้';$st_badge='bg-slate-100 text-slate-600 border-slate-200';
+                    } elseif ($it['status'] === 'damaged') {
                                 $st_badge = 'bg-rose-50 text-rose-600 border-rose-200';
                                 $st_label = '● ชำรุด';
                             } elseif ($it['status'] === 'degraded') {
@@ -491,7 +499,7 @@ include __DIR__ . '/includes/header.php';
                             </td>
 
                             <td class="py-3 px-3 text-right font-medium text-slate-700 whitespace-nowrap">
-                                <?= number_format((float)$it['unit_price']) ?>
+                                <?= $it['unit_price']===null?'ไม่ระบุ':number_format((float)$it['unit_price'],2) ?>
                             </td>
 
                             <td class="py-3 px-3 text-center whitespace-nowrap">
@@ -502,7 +510,7 @@ include __DIR__ . '/includes/header.php';
 
                             <td class="py-3 px-3 text-center whitespace-nowrap" onclick="event.stopPropagation()">
                                 <div class="inline-flex items-center gap-1.5">
-                                    <button type="button" onclick="viewItem(<?= htmlspecialchars(json_encode($it), ENT_QUOTES, 'UTF-8') ?>)" title="คลิกดูรายละเอียด (ป๊อปอัป)" class="p-1.5 rounded-lg text-indigo-600 hover:text-white hover:bg-indigo-600 bg-indigo-50 border border-indigo-100 transition-all shadow-2xs">
+                                    <button type="button" onclick="viewItem({id:<?= (int)$it['id'] ?>})" title="คลิกดูรายละเอียด (ป๊อปอัป)" class="p-1.5 rounded-lg text-indigo-600 hover:text-white hover:bg-indigo-600 bg-indigo-50 border border-indigo-100 transition-all shadow-2xs">
                                         <i class="fa-regular fa-eye text-xs"></i>
                                     </button>
                                     <button type="button" onclick="openEditModal(<?= htmlspecialchars(json_encode($it), ENT_QUOTES, 'UTF-8') ?>)" title="แก้ไข" class="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-slate-100 transition-colors">
@@ -524,43 +532,7 @@ include __DIR__ . '/includes/header.php';
             </table>
         </div>
 
-        <!-- Table Pagination Footer -->
-        <div class="p-4 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2 text-xs text-slate-500">
-            <div>
-                แสดง <?= min($total_filtered, $offset + 1) ?> - <?= min($total_filtered, $offset + $per_page) ?> จาก <?= number_format($total_filtered) ?> รายการ
-            </div>
-            
-            <div class="flex items-center gap-1">
-                <a href="?page=<?= max(1, $page - 1) ?>&limit=<?= $per_page ?>&search=<?= urlencode($search) ?>&cat=<?= urlencode($filter_cat) ?>&status=<?= urlencode($filter_status) ?>&loc=<?= urlencode($filter_loc) ?>" 
-                   class="px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 <?= $page <= 1 ? 'pointer-events-none opacity-40' : '' ?>">
-                    <i class="fa-solid fa-chevron-left text-[10px]"></i>
-                </a>
-
-                <?php 
-                $start_p = max(1, $page - 2);
-                $end_p = min($total_pages, $page + 2);
-                for ($p = $start_p; $p <= $end_p; $p++): 
-                ?>
-                    <a href="?page=<?= $p ?>&limit=<?= $per_page ?>&search=<?= urlencode($search) ?>&cat=<?= urlencode($filter_cat) ?>&status=<?= urlencode($filter_status) ?>&loc=<?= urlencode($filter_loc) ?>" 
-                       class="px-3 py-1 rounded-lg text-xs font-medium <?= $p === $page ? 'bg-indigo-600 text-white shadow-xs' : 'border border-slate-200 hover:bg-slate-50 text-slate-600' ?>">
-                        <?= $p ?>
-                    </a>
-                <?php endfor; ?>
-
-                <?php if ($end_p < $total_pages): ?>
-                    <span class="px-1 text-slate-400">...</span>
-                    <a href="?page=<?= $total_pages ?>&limit=<?= $per_page ?>&search=<?= urlencode($search) ?>&cat=<?= urlencode($filter_cat) ?>&status=<?= urlencode($filter_status) ?>&loc=<?= urlencode($filter_loc) ?>" 
-                       class="px-3 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs">
-                        <?= $total_pages ?>
-                    </a>
-                <?php endif; ?>
-
-                <a href="?page=<?= min($total_pages, $page + 1) ?>&limit=<?= $per_page ?>&search=<?= urlencode($search) ?>&cat=<?= urlencode($filter_cat) ?>&status=<?= urlencode($filter_status) ?>&loc=<?= urlencode($filter_loc) ?>" 
-                   class="px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 <?= $page >= $total_pages ? 'pointer-events-none opacity-40' : '' ?>">
-                    <i class="fa-solid fa-chevron-right text-[10px]"></i>
-                </a>
-            </div>
-        </div>
+    <?php sena_render_pagination($total_filtered,$per_page,$page,$_GET); ?>
 
     </div>
 
@@ -649,12 +621,12 @@ include __DIR__ . '/includes/header.php';
                     </div>
 
                     <div class="py-2 border-t border-slate-200/60 flex items-center justify-between">
-                        <span class="text-slate-400">ประเภทครุภัณฑ์</span>
+                        <span class="text-slate-400">หมวดทะเบียน</span>
                         <span id="modal-dt-cat" class="inline-flex items-center gap-1 text-slate-700 font-semibold px-2 py-0.5 rounded-md bg-white border border-slate-200">
                             -
                         </span>
                     </div>
-                    <div class="py-2 border-t border-slate-200/60 flex items-center justify-between gap-3"><span class="text-slate-400">แหล่งข้อมูล</span><span id="modal-dt-source" class="text-slate-700 text-right">-</span></div>
+                    <div class="py-2 border-t border-slate-200/60"><span class="text-slate-400">ประเภทจากหัวกระดาษ</span><p id="modal-dt-type" class="mt-1 text-slate-800"></p></div><details class="py-2"><summary class="cursor-pointer">ตรวจข้อมูลต้นฉบับและหมายเหตุการอ่าน</summary><pre id="modal-dt-original" class="whitespace-pre-wrap break-all mt-2 text-xs max-h-64 overflow-auto"></pre></details><div class="py-2 border-t border-slate-200/60 flex items-center justify-between gap-3"><span class="text-slate-400">แหล่งข้อมูล</span><span id="modal-dt-source" class="text-slate-700 text-right">-</span></div>
 
                     <div class="py-2 border-t border-slate-200/60 flex items-center justify-between">
                         <span class="text-slate-400">ราคาต่อหน่วย</span>
@@ -756,7 +728,7 @@ include __DIR__ . '/includes/header.php';
                 </div>
 
                 <div>
-                    <label class="block text-slate-600 font-medium mb-1">ประเภทครุภัณฑ์</label>
+                    <label class="block text-slate-600 font-medium mb-1">หมวดทะเบียน</label>
                     <input type="text" name="category" list="registry-category-list" class="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500">
                 </div>
 
@@ -779,10 +751,13 @@ include __DIR__ . '/includes/header.php';
 
                 <div>
                     <label class="block text-slate-600 font-medium mb-1">สถานะครุภัณฑ์</label>
-                    <select name="status" class="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500">
-                        <option value="active">ใช้ได้ (พร้อมใช้งาน)</option>
+                    <label class="block mb-2">ประเภทจากหัวกระดาษ<input name="asset_type" placeholder="เช่น สำนักงาน" class="w-full border rounded-xl px-3 py-2 mt-1"></label>
+<select name="status" class="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500">
+                        <option value="unverified" <?= ($filter_status??'') === 'unverified' ? 'selected' : '' ?>>ยังไม่ยืนยัน</option>
+<option value="active">ใช้ได้ (พร้อมใช้งาน)</option>
                         <option value="damaged">ชำรุด (รอซ่อม)</option>
-                        <option value="degraded">เสื่อมคุณภาพ</option>
+                        <option value="disposed">&#3592;&#3635;&#3627;&#3609;&#3656;&#3634;&#3618;&#3649;&#3621;&#3657;&#3623;</option><option value="unused">&#3652;&#3617;&#3656;&#3651;&#3594;&#3657;</option>
+<option value="degraded">เสื่อมคุณภาพ</option>
                     </select>
                 </div>
 
@@ -862,7 +837,7 @@ include __DIR__ . '/includes/header.php';
                 </div>
 
                 <div>
-                    <label class="block text-slate-600 font-medium mb-1">ประเภทครุภัณฑ์</label>
+                    <label class="block text-slate-600 font-medium mb-1">หมวดทะเบียน</label>
                     <input type="text" name="category" id="edit-cat" list="registry-category-list" class="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500">
                 </div>
 
@@ -880,10 +855,13 @@ include __DIR__ . '/includes/header.php';
 
                 <div>
                     <label class="block text-slate-600 font-medium mb-1">สถานะครุภัณฑ์</label>
-                    <select name="status" id="edit-status" class="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500">
-                        <option value="active">ใช้ได้ (พร้อมใช้งาน)</option>
+                    <label class="block mb-2">ประเภทจากหัวกระดาษ<input name="asset_type" id="edit-asset-type" placeholder="เช่น สำนักงาน" class="w-full border rounded-xl px-3 py-2 mt-1"></label>
+<select name="status" id="edit-status" class="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500">
+                        <option value="unverified" <?= ($filter_status??'') === 'unverified' ? 'selected' : '' ?>>ยังไม่ยืนยัน</option>
+<option value="active">ใช้ได้ (พร้อมใช้งาน)</option>
                         <option value="damaged">ชำรุด (รอซ่อม)</option>
-                        <option value="degraded">เสื่อมคุณภาพ</option>
+                        <option value="disposed">&#3592;&#3635;&#3627;&#3609;&#3656;&#3634;&#3618;&#3649;&#3621;&#3657;&#3623;</option><option value="unused">&#3652;&#3617;&#3656;&#3651;&#3594;&#3657;</option>
+<option value="degraded">เสื่อมคุณภาพ</option>
                     </select>
                 </div>
 
@@ -929,8 +907,12 @@ include __DIR__ . '/includes/header.php';
 let currentModalData = null;
 
 // VIEW ITEM IN POPUP MODAL (เมื่อคลิกที่ไอคอนรูปเปิดตา 👁️)
-function viewItem(data) {
+async function viewItem(data) {
     if (!data) return;
+    try { const response=await fetch('actions/equipment_details.php?id='+encodeURIComponent(data.id));
+        if(!response.ok) throw new Error('โหลดรายละเอียดไม่สำเร็จ');
+        data=await response.json();
+    } catch(e) { alert(e.message);return; }
     currentModalData = data;
 
     // Name & Codes
@@ -943,14 +925,16 @@ function viewItem(data) {
     const codeEl = document.getElementById('modal-dt-code');
     if (codeEl) codeEl.textContent = data.equipment_code || '-';
 
+    document.getElementById('modal-dt-type').textContent=data.asset_type||'ไม่ได้ระบุในต้นฉบับ';
+    document.getElementById('modal-dt-original').textContent=JSON.stringify({วันที่ต้นฉบับ:data.acquisition_date_text,หมายเหตุการอ่าน:data.source_notes,ข้อมูลต้นฉบับ:data.source_data?JSON.parse(data.source_data):null},null,2);
     // Category
     const catEl = document.getElementById('modal-dt-cat');
     if (catEl) catEl.textContent = data.category || 'ไม่ระบุประเภท';
-    document.getElementById('modal-dt-source').textContent = data.source_sheet ? `${data.source_sheet} · แถว ${data.source_row || '-'}` : 'เพิ่มในระบบ';
+    document.getElementById('modal-dt-source').textContent = data.source_sheet ? `${data.source_sheet} · แถว ${data.source_row || '-'}${data.source_row_end>data.source_row?'–'+data.source_row_end:''}` : 'เพิ่มในระบบ';
 
     // Price
     const priceEl = document.getElementById('modal-dt-price');
-    if (priceEl) priceEl.textContent = Number(data.unit_price || 0).toLocaleString() + ' บาท';
+    if (priceEl) priceEl.textContent = data.unit_price==null?'ไม่ได้ระบุในต้นฉบับ':Number(data.unit_price).toLocaleString(undefined,{minimumFractionDigits:2})+' บาท';
 
     // Location
     const locEl = document.getElementById('modal-dt-loc');
@@ -963,7 +947,9 @@ function viewItem(data) {
     // Status badge
     const stEl = document.getElementById('modal-dt-status');
     if (stEl) {
-        if (data.status === 'damaged') {
+        if (data.status === 'unverified') {
+            stEl.textContent='● ยังไม่ยืนยัน';stEl.className='inline-block px-2.5 py-0.5 rounded-full text-[11px] bg-slate-100 text-slate-600';
+        } else if (data.status === 'damaged') {
             stEl.className = 'inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200';
             stEl.textContent = '● ชำรุด (รอซ่อม)';
         } else if (data.status === 'degraded') {
@@ -983,7 +969,7 @@ function viewItem(data) {
 
     // Dates and acquisition
     const dateEl = document.getElementById('modal-dt-date');
-    if (dateEl) dateEl.textContent = data.acquisition_date || '-';
+    if (dateEl) dateEl.textContent = data.acquisition_date || data.acquisition_date_text || 'ไม่ได้ระบุ';
 
     const methodEl = document.getElementById('modal-dt-method');
     if (methodEl) methodEl.textContent = data.acquisition_method || '-';
@@ -1197,8 +1183,9 @@ function openEditModal(data) {
     document.getElementById('edit-name').value = data.equipment_name || '';
     document.getElementById('edit-code').value = data.equipment_code || '';
     document.getElementById('edit-cat').value = data.category || 'ครุภัณฑ์คอมพิวเตอร์';
-    document.getElementById('edit-price').value = data.unit_price || '';
+    document.getElementById('edit-price').value = data.unit_price ?? '';
     document.getElementById('edit-loc').value = data.location || '';
+    document.getElementById('edit-asset-type').value=data.asset_type||'';
     document.getElementById('edit-status').value = data.status || 'active';
     document.getElementById('edit-brand').value = data.brand_description || '';
     document.getElementById('edit-remarks').value = data.remarks || '';

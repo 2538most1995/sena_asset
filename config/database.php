@@ -214,9 +214,13 @@ function sena_ensure_schema_ready(PDO $pdo) {
                 'is_overlap'=>'TINYINT(1) DEFAULT 0','category'=>'VARCHAR(255) NULL',
                 'location'=>'VARCHAR(255) NULL','inspector'=>'VARCHAR(100) NULL',
                 'price'=>'DECIMAL(15,2) NULL','image_url'=>'VARCHAR(500) NULL'];
-            else $needed += ['image_url'=>'VARCHAR(500) NULL'];
+            else $needed += ['image_url'=>'VARCHAR(500) NULL','asset_type'=>'VARCHAR(255) NULL','acquisition_date_text'=>'TEXT NULL','source_row_end'=>'INT NULL','source_data'=>'LONGTEXT NULL','source_notes'=>'TEXT NULL'];
             foreach ($needed as $column => $definition) {
                 if (!in_array($column, $cols, true)) $pdo->exec("ALTER TABLE `$table` ADD COLUMN `$column` $definition");
+            }
+            if ($table === 'equipment_registry') {
+                $statusType=$pdo->query("SHOW COLUMNS FROM equipment_registry LIKE 'status'")->fetch(PDO::FETCH_ASSOC)['Type'];
+                if (strpos($statusType,'unverified')===false) $pdo->exec("ALTER TABLE equipment_registry MODIFY status ENUM('active','damaged','degraded','disposed','unused','unverified') DEFAULT 'unverified'");
             }
             $indexes = $pdo->query("SHOW INDEX FROM `$table`")->fetchAll(PDO::FETCH_ASSOC);
             $names = array_column($indexes, 'Key_name');
@@ -228,6 +232,8 @@ function sena_ensure_schema_ready(PDO $pdo) {
         } catch (\Throwable $ex) { error_log("Migration error: " . $ex->getMessage()); }
     }
     try {
+        if (!in_array('registry_enabled',$pdo->query('SHOW COLUMNS FROM asset_categories')->fetchAll(PDO::FETCH_COLUMN),true)) $pdo->exec('ALTER TABLE asset_categories ADD registry_enabled TINYINT(1) NOT NULL DEFAULT 1');
+        $pdo->exec("CREATE TABLE IF NOT EXISTS registry_source_sheets (source_file VARCHAR(255) NOT NULL, source_sheet VARCHAR(255) NOT NULL, category_name VARCHAR(255) NOT NULL, asset_type VARCHAR(255) NULL, equipment_name VARCHAR(255) NULL, item_count INT NOT NULL DEFAULT 0, source_header LONGTEXT NULL, PRIMARY KEY(source_file(100),source_sheet(100))) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
         $indexes=$pdo->query('SHOW INDEX FROM asset_categories')->fetchAll(PDO::FETCH_ASSOC);
         if (!in_array('uq_category_name',array_column($indexes,'Key_name'),true))
             $pdo->exec('ALTER TABLE asset_categories ADD UNIQUE KEY uq_category_name (category_name)');

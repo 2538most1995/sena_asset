@@ -9,7 +9,7 @@ try {
     if (!hash_equals($_SESSION['csrf_token'] ?? '', (string)($data['csrf_token'] ?? '')) || empty($_SESSION['csrf_token']))
         throw new RuntimeException('เซสชันหมดอายุ กรุณาโหลดหน้าใหม่');
     if (!isset($data['rows']) || !is_array($data['rows'])) throw new InvalidArgumentException('ไม่พบข้อมูลนำเข้า');
-    $result=sena_import($pdo,(string)($data['type']??''),$data['rows'],!empty($data['replace']));
+    $result=sena_import($pdo,(string)($data['type']??''),$data['rows'],!empty($data['replace']),is_array($data['sheets']??null)?$data['sheets']:[]);
     echo json_encode($result,JSON_UNESCAPED_UNICODE);
 } catch (Throwable $e) {
     http_response_code(400);

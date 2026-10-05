@@ -4,6 +4,7 @@ USE sena_asset;
 -- Table: asset_categories (หมวดหมู่ครุภัณฑ์)
 CREATE TABLE IF NOT EXISTS asset_categories (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    registry_enabled TINYINT(1) NOT NULL DEFAULT 1,
     category_name VARCHAR(255) NOT NULL,
     category_code VARCHAR(50) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -46,6 +47,11 @@ CREATE TABLE IF NOT EXISTS inspection_items (
 -- Table: equipment_registry (ทะเบียนคุรุภัณฑ์)
 CREATE TABLE IF NOT EXISTS equipment_registry (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    asset_type VARCHAR(255) NULL,
+    acquisition_date_text TEXT NULL,
+    source_row_end INT NULL,
+    source_data LONGTEXT NULL,
+    source_notes TEXT NULL,
     category VARCHAR(255) NULL COMMENT 'ประเภท',
     equipment_name VARCHAR(500) NOT NULL COMMENT 'ชื่อหรือชนิดครุภัณฑ์',
     equipment_code VARCHAR(100) NULL COMMENT 'เลขที่หรือรหัส',
@@ -60,7 +66,7 @@ CREATE TABLE IF NOT EXISTS equipment_registry (
     change_document VARCHAR(100) NULL COMMENT 'เลขที่เอกสารเปลี่ยนแปลง',
     remarks TEXT NULL COMMENT 'หมายเหตุ',
     acquisition_date DATE NULL,
-    status ENUM('active','damaged','degraded','disposed','unused') DEFAULT 'active',
+    status ENUM('active','damaged','degraded','disposed','unused','unverified') DEFAULT 'unverified',
     image_url VARCHAR(500) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -87,4 +93,11 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_username (username),
     INDEX idx_role (role)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS registry_source_sheets (
+ source_file VARCHAR(255) NOT NULL, source_sheet VARCHAR(255) NOT NULL,
+ category_name VARCHAR(255) NOT NULL, asset_type VARCHAR(255) NULL, equipment_name VARCHAR(255) NULL,
+ item_count INT NOT NULL DEFAULT 0, source_header LONGTEXT NULL,
+ PRIMARY KEY(source_file(100),source_sheet(100))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

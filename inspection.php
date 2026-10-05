@@ -5,6 +5,7 @@ $page_title = 'บัญชีรายการตรวจประจำป�
 $page_subtitle = 'บันทึกผลการตรวจครุภัณฑ์ประจำปีงบประมาณ และนำเข้ารายการปีก่อนหน้า';
 
 require_once __DIR__ . '/config/database.php';
+require_once __DIR__ . '/includes/pagination.php';
 require_once __DIR__ . '/config/auth.php';
 require_once __DIR__ . '/includes/image_helper.php';
 
@@ -200,7 +201,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 $search = trim($_GET['search'] ?? '');
 $filter_loc = trim($_GET['loc'] ?? '');
 $filter_status = trim($_GET['status'] ?? '');
-$per_page = max(5, min(100, (int)($_GET['limit'] ?? 10)));
+$per_page = sena_page_limit($_GET['limit'] ?? 25);
 $page = max(1, (int)($_GET['page'] ?? 1));
 $offset = ($page - 1) * $per_page;
 
@@ -243,9 +244,11 @@ try {
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM inspection_items WHERE $where_sql");
     $stmt->execute($params);
     $total_items = (int)$stmt->fetchColumn();
+    $paging=sena_page_state($total_items,$per_page,$_GET['page']??1);
+    $page=$paging['page'];$offset=$paging['offset'];
 
     // Paginated rows
-    $stmt = $pdo->prepare("SELECT * FROM inspection_items WHERE $where_sql ORDER BY item_number ASC LIMIT $per_page OFFSET $offset");
+    $stmt = $pdo->prepare("SELECT * FROM inspection_items WHERE $where_sql ORDER BY item_number ASC, id ASC LIMIT $per_page OFFSET $offset");
     $stmt->execute($params);
     $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -627,9 +630,7 @@ include __DIR__ . '/includes/header.php';
             <div class="flex items-center gap-1.5 text-xs text-slate-500">
                 <span class="hidden sm:inline">แสดง</span>
                 <select onchange="window.location.href='inspection.php?page=1&limit='+this.value+'&search=<?= urlencode($search) ?>&loc=<?= urlencode($filter_loc) ?>&status=<?= urlencode($filter_status) ?>&year=<?= $year ?>'" class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-slate-600">
-                    <option value="10" <?= $per_page == 10 ? 'selected' : '' ?>>10 รายการ</option>
-                    <option value="25" <?= $per_page == 25 ? 'selected' : '' ?>>25 รายการ</option>
-                    <option value="50" <?= $per_page == 50 ? 'selected' : '' ?>>50 รายการ</option>
+                    <?php foreach(sena_page_sizes() as $size): ?><option value="<?=$size?>" <?=$per_page===$size?'selected':''?>><?=number_format($size)?> รายการ</option><?php endforeach; ?>
                 </select>
             </div>
         </div>
@@ -1014,28 +1015,8 @@ include __DIR__ . '/includes/header.php';
         </table>
     </div>
 
-    <!-- Table & Card Shared Pagination -->
-    <div class="p-3.5 sm:p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
-        <div>
-            แสดง <?= $total_items > 0 ? min($total_items, $offset + 1) : 0 ?> - <?= min($total_items, $offset + $per_page) ?> จาก <?= number_format($total_items) ?> รายการ
-        </div>
-        <div class="flex items-center gap-1">
-            <a href="?page=<?= max(1, $page - 1) ?>&limit=<?= $per_page ?>&search=<?= urlencode($search) ?>&loc=<?= urlencode($filter_loc) ?>&status=<?= urlencode($filter_status) ?>&year=<?= $year ?>" 
-               class="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 <?= $page <= 1 ? 'pointer-events-none opacity-40' : '' ?>">
-                <i class="fa-solid fa-chevron-left text-[10px]"></i>
-            </a>
-            <?php for ($p = max(1, $page - 2); $p <= min($total_pages, $page + 2); $p++): ?>
-                <a href="?page=<?= $p ?>&limit=<?= $per_page ?>&search=<?= urlencode($search) ?>&loc=<?= urlencode($filter_loc) ?>&status=<?= urlencode($filter_status) ?>&year=<?= $year ?>" 
-                   class="px-3 py-1.5 rounded-lg <?= $p === $page ? 'bg-indigo-600 text-white font-bold' : 'border border-slate-200 hover:bg-slate-50 text-slate-600' ?>">
-                    <?= $p ?>
-                </a>
-            <?php endfor; ?>
-            <a href="?page=<?= min($total_pages, $page + 1) ?>&limit=<?= $per_page ?>&search=<?= urlencode($search) ?>&loc=<?= urlencode($filter_loc) ?>&status=<?= urlencode($filter_status) ?>&year=<?= $year ?>" 
-               class="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 <?= $page >= $total_pages ? 'pointer-events-none opacity-40' : '' ?>">
-                <i class="fa-solid fa-chevron-right text-[10px]"></i>
-            </a>
-        </div>
-    </div>
+    <?php sena_render_pagination($total_items,$per_page,$page,$_GET); ?>
+
 </div>
 
 <!-- HIDDEN CAMERA INPUT FOR DIRECT SMARTPHONE CAPTURE -->

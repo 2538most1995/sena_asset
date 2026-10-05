@@ -1,0 +1,13 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+if(process.argv.length!==5)throw new Error('Usage: node tests/audit-workbooks.cjs SHEETJS_PATH REGISTER_PATH INSPECTION_PATH');
+const path=require('node:path');const XLSX=require(path.resolve(process.argv[2]));const context={window:{},XLSX};vm.createContext(context);vm.runInContext(fs.readFileSync('assets/import-parser.js','utf8'),context);
+const filename=path.basename(process.argv[3]);const wb=XLSX.read(fs.readFileSync(process.argv[3]),{raw:true});
+const result=context.window.SenaImport.parse(wb,'registry',filename);
+const keys=new Set(),sources=new Set();
+for(const record of result.rows){assert(!keys.has(record.source_key),'duplicate source key');keys.add(record.source_key);assert(record.category===record.source_sheet);assert(record.asset_type!==undefined);const raw=JSON.parse(record.source_data);
+for(const r of raw.rows){const key=record.source_sheet+':'+r.row;assert(!sources.has(key),'source row reused '+key);sources.add(key);const original=XLSX.utils.sheet_to_json(wb.Sheets[record.source_sheet],{header:1,raw:true,defval:'',blankrows:true})[r.row-1];assert.deepStrictEqual(JSON.parse(JSON.stringify(r.cells)),original.slice(0,r.cells.length),'changed source '+key);assert(original.slice(r.cells.length).every(v=>String(v??'').trim()===''),'unaccounted extra cells '+key);}}
+for(const r of result.audit.excluded_rows){const key=r.sheet+':'+r.row;assert(!sources.has(key));sources.add(key);}
+for(const sheetName of wb.SheetNames.filter(n=>!/\u0e2a\u0e32\u0e23\u0e1a\u0e31\u0e0d/.test(n))){const matrix=XLSX.utils.sheet_to_json(wb.Sheets[sheetName],{header:1,raw:true,defval:'',blankrows:true});const h=matrix.findIndex(row=>row.some(v=>String(v).includes('\u0e40\u0e25\u0e02\u0e17\u0e35\u0e48\u0e2b\u0e23\u0e37\u0e2d\u0e23\u0e2b\u0e31\u0e2a')));assert(h>=0);for(let i=h+2;i<matrix.length;i++)if(matrix[i].some(v=>String(v??'').trim()!==''))assert(sources.has(sheetName+':'+(i+1)),'missing source row '+sheetName+':'+(i+1));}
+assert.equal(sources.size,result.audit.body_rows);assert.equal(result.sheets.length,wb.SheetNames.length-1);assert.equal(result.rows.length,1157);assert.equal(result.sheets.reduce((n,s)=>n+s.item_count,0),result.rows.length);
+const inspection=context.window.SenaImport.parse(XLSX.read(fs.readFileSync(process.argv[4])),'inspection',path.basename(process.argv[4]),2568);assert.equal(inspection.rows.length,603);
+console.log(JSON.stringify({records:result.rows.length,categories:result.sheets.length,bodyRows:result.audit.body_rows,continuations:result.audit.continuation_rows,contexts:result.audit.context_rows,excluded:result.audit.excluded_rows.length,inspection:inspection.rows.length},null,2));

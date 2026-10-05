@@ -12,3 +12,5 @@ config/database.local.php
 config/production.php
 .env
 .local-backups/
+.playwright-cli/
+output/playwright/
