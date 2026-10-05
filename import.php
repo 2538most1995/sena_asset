@@ -40,6 +40,7 @@ include __DIR__.'/includes/header.php';
   <?php endforeach; ?>
 </div>
 <section class="bg-white border border-slate-200 rounded-2xl p-5 mt-5 shadow-sm">
+  <form method="post" action="actions/data_backup.php" class="mb-4"><input type="hidden" name="csrf_token" value="<?=htmlspecialchars($_SESSION['csrf_token'])?>"><button class="border rounded-xl px-4 py-2 text-sm">ดาวน์โหลดข้อมูลสำรองทั้งหมดก่อนนำเข้า</button></form>
   <div class="flex flex-wrap justify-between items-center gap-3">
     <div><h2 class="font-semibold text-slate-900">ตรวจสอบก่อนนำเข้า</h2><p class="text-sm text-slate-500" id="preview-summary">เลือกไฟล์ทะเบียนหรือบัญชีตรวจด้านบน</p></div>
     <button id="import-button" disabled class="px-5 py-3 rounded-xl bg-indigo-700 text-white font-medium disabled:opacity-40">ยืนยันนำเข้า</button>
@@ -93,6 +94,7 @@ document.getElementById('import-button').addEventListener('click',async()=>{
     const response=await fetch('actions/import_handler.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:selected.type,rows:selected.rows,sheets:selected.sheets,replace,csrf_token:csrfToken})});
     const result=await response.json();if(!response.ok||!result.success)throw new Error(result.error||'นำเข้าไม่สำเร็จ');
     notice(`บันทึกใหม่ ${result.inserted.toLocaleString()} รายการ · ปรับปรุง ${(result.updated||0).toLocaleString()} รายการ · ข้ามรายการเดิม ${result.skipped.toLocaleString()} · อ่านทั้งหมด ${result.total.toLocaleString()} รายการ`);
+    if(result.backup_id){const link=document.createElement('a');link.href='actions/data_backup.php?id='+encodeURIComponent(result.backup_id);link.textContent='ดาวน์โหลดข้อมูลสำรองก่อนแทนที่';link.className='block mt-2 underline';document.getElementById('import-result').appendChild(link);}
   } catch(e) {notice(e.message,true)} finally {btn.disabled=false;btn.textContent='ยืนยันนำเข้า'}
 });
 </script>

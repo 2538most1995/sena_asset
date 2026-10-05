@@ -292,7 +292,8 @@ $app_logo = !empty($app_settings['logo_url']) ? $app_settings['logo_url'] : 'ass
         <div class="bg-white/70 border-b border-slate-200/60 px-4 sm:px-6 py-2 flex items-center justify-between text-xs text-slate-500 flex-wrap gap-2">
             <div class="flex items-center gap-2">
                 <i class="fa-regular fa-calendar-check text-indigo-500"></i>
-                <span>ข้อมูลล่าสุด 15 ตุลาคม 2567 เวลา 10:24 น.</span>
+                <?php $display_time=new DateTimeImmutable('now',new DateTimeZone('Asia/Bangkok')); ?>
+                <span>แสดงข้อมูล ณ <?= $display_time->format('d/m/').((int)$display_time->format('Y')+543) ?> เวลา <?= $display_time->format('H:i') ?> น.</span>
             </div>
             <button onclick="window.location.reload()" class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 hover:text-indigo-600 rounded-lg transition-colors">
                 <i class="fa-solid fa-arrows-rotate text-[11px]"></i>

@@ -307,7 +307,7 @@ include __DIR__ . '/includes/header.php';
             </button>
 
             <!-- Export Excel Button -->
-            <a href="reports.php?export=excel" class="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium transition-all">
+            <a href="reports.php?<?=htmlspecialchars(http_build_query(['export'=>'excel','source'=>'registry','cat'=>$filter_cat,'loc'=>$filter_loc,'status'=>$filter_status,'search'=>$search]))?>" class="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium transition-all">
                 <i class="fa-regular fa-file-excel text-emerald-600"></i>
                 <span>ส่งออก Excel</span>
             </a>

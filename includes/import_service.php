@@ -9,6 +9,14 @@ function sena_import(PDO $pdo, string $type, array $rows, bool $replace = false,
       : ['item_number','item_name','asset_code','asset_id_code','status_usable','status_damaged','status_degraded','status_lost','status_unused','remarks','fiscal_year','category','location','price','source_file','source_sheet','source_row','source_key'];
     $pdo->beginTransaction();
     try {
+        $legacy=[];$incomingCodes=[];
+        $normalizeCode=static fn($s)=>preg_replace('/\s+/u','',trim((string)$s));
+        if($replace && $type==='registry'){
+            foreach($rows as $r){$c=$normalizeCode($r['equipment_code']??'');if($c!=='')$incomingCodes[$c]=($incomingCodes[$c]??0)+1;}
+            foreach($pdo->query("SELECT id,equipment_code FROM equipment_registry WHERE source_key IS NULL OR source_key='' FOR UPDATE") as $old){
+                $c=$normalizeCode($old['equipment_code']);if($c!=='')$legacy[$c][]=(int)$old['id'];
+            }
+        }
         if ($replace && $type === 'inspection') {
             $years = array_unique(array_map(fn($r) => (int)($r['fiscal_year'] ?? 2568), $rows));
             $del = $pdo->prepare('DELETE FROM inspection_items WHERE fiscal_year = ?');
@@ -20,6 +28,7 @@ function sena_import(PDO $pdo, string $type, array $rows, bool $replace = false,
         $kept=[];$updated=0;
         $identity=$pdo->prepare('SELECT id FROM equipment_registry WHERE source_key=?');
         $stmt = $pdo->prepare($sql);
+        $legacyUpdate=$type==='registry'?$pdo->prepare('UPDATE equipment_registry SET '.implode(',',array_map(fn($f)=>"`$f`=?",$fields)).' WHERE id=?'):null;
         $existing = $type === 'inspection' && !$replace ? $pdo->prepare('SELECT id FROM inspection_items WHERE fiscal_year=? AND item_number=? LIMIT 1') : null;
         $inserted=0; $skipped=0; $categories=[]; $errors=[];
         foreach ($rows as $i=>$row) {
@@ -45,8 +54,15 @@ function sena_import(PDO $pdo, string $type, array $rows, bool $replace = false,
                 if (is_string($v)) $v=trim($v);
                 $values[]=$v;
             }
-            $stmt->execute($values);
-            if ($stmt->rowCount()===1) $inserted++; elseif($stmt->rowCount()===2) $updated++; else $skipped++;
+            $c=$normalizeCode($row['equipment_code']??'');
+            $matchLegacy=$replace && $type==='registry' && ($incomingCodes[$c]??0)===1 && count($legacy[$c]??[])===1;
+            if($matchLegacy){$identity->execute([$key]);$matchLegacy=!$identity->fetchColumn();}
+            if($matchLegacy){
+                $legacyUpdate->execute(array_merge($values,[$legacy[$c][0]]));unset($legacy[$c]);$updated++;
+            }else{
+                $stmt->execute($values);
+                if ($stmt->rowCount()===1) $inserted++; elseif($stmt->rowCount()===2) $updated++; else $skipped++;
+            }
             if($replace && $type==='registry'){$identity->execute([$key]);$kept[]=(int)$identity->fetchColumn();}
             if ($type==='registry' && trim((string)($row['category']??''))!=='') $categories[trim($row['category'])]=true;
         }
@@ -67,6 +83,7 @@ function sena_import(PDO $pdo, string $type, array $rows, bool $replace = false,
             if (!$kept) throw new InvalidArgumentException('Empty replacement is not allowed');
             $purge=$pdo->prepare('DELETE FROM equipment_registry WHERE id NOT IN ('.implode(',',array_fill(0,count($kept),'?')).')');
             $purge->execute($kept);
+            $pdo->exec('UPDATE asset_categories c SET registry_enabled=0 WHERE NOT EXISTS (SELECT 1 FROM equipment_registry e WHERE e.category=c.category_name) AND NOT EXISTS (SELECT 1 FROM registry_source_sheets s WHERE s.category_name=c.category_name)');
         }
         $pdo->commit();
         return ['success'=>true,'inserted'=>$inserted,'updated'=>$updated,'skipped'=>$skipped,'count'=>$inserted,'total'=>count($rows)];
