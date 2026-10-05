@@ -329,40 +329,27 @@ include __DIR__ . '/includes/header.php';
 <!-- 1. TOP FILTER BAR & ANNUAL ROLLOVER ACTIONS -->
 <div class="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-200/80 shadow-2xs space-y-3">
     
-    <div class="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
+    <div class="space-y-4">
         
         <!-- Filter Form -->
-        <form method="GET" action="inspection.php" id="filter-form" class="flex flex-wrap items-center gap-2 sm:gap-3">
-            
-            <!-- Fiscal Year Dropdown with Instant Submit -->
-            <div class="flex items-center gap-2 bg-indigo-50/70 p-1.5 rounded-xl border border-indigo-100 flex-shrink-0">
-                <span class="text-xs font-bold text-indigo-900 pl-1 flex items-center gap-1.5">
-                    <i class="fa-solid fa-calendar-check text-indigo-600"></i>
-                    <span>ปีงบประมาณ:</span>
-                </span>
-                <select name="year" onchange="document.getElementById('filter-form').submit()" 
-                        class="bg-white border border-indigo-200 text-indigo-900 font-bold text-xs rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-indigo-500 shadow-2xs">
+        <form method="GET" action="inspection.php" id="filter-form" class="sena-filter-grid"><label class="sena-filter-field"><span class="sena-filter-label">ปีงบประมาณ</span>
+<select name="year" onchange="document.getElementById('filter-form').submit()"
+                        class="sena-filter-control">
                     <?php foreach ($year_options as $y): ?>
                         <option value="<?= $y ?>" <?= $year === (int)$y ? 'selected' : '' ?>>พ.ศ. <?= $y ?></option>
                     <?php endforeach; ?>
                 </select>
-            </div>
-
-            <!-- Location -->
-            <div class="flex items-center gap-1.5">
-                <span class="text-xs font-medium text-slate-500 hidden sm:inline">สถานที่/ผู้รับผิดชอบ</span>
-                <select name="loc" onchange="document.getElementById('filter-form').submit()" class="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-2.5 py-1.5 sm:py-2 focus:ring-2 focus:ring-indigo-500 max-w-[150px] sm:max-w-[180px]">
-                    <option value="">ทุกสถานที่/ผู้รับผิดชอบ</option>
+</label>
+        <label class="sena-filter-field sena-filter-wide"><span class="sena-filter-label">สถานที่/ผู้รับผิดชอบ</span>
+<select name="loc" onchange="document.getElementById('filter-form').submit()" class="sena-filter-control">
+                    <option value="">ทั้งหมด</option>
                     <?php foreach ($locations as $l): ?>
                         <option value="<?= htmlspecialchars($l) ?>" <?= $filter_loc === $l ? 'selected' : '' ?>><?= htmlspecialchars($l) ?></option>
                     <?php endforeach; ?>
                 </select>
-            </div>
-
-            <!-- Status Filter -->
-            <div class="flex items-center gap-1.5">
-                <span class="text-xs font-medium text-slate-500 hidden sm:inline">สถานะ</span>
-                <select name="status" onchange="document.getElementById('filter-form').submit()" class="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-2.5 py-1.5 sm:py-2 focus:ring-2 focus:ring-indigo-500">
+</label>
+        <label class="sena-filter-field"><span class="sena-filter-label">สถานะ</span>
+<select name="status" onchange="document.getElementById('filter-form').submit()" class="sena-filter-control">
                     <option value="">ทุกสถานะ</option>
                     <option value="pending" <?= $filter_status === 'pending' ? 'selected' : '' ?>>รอตรวจนับ</option>
                     <option value="usable" <?= $filter_status === 'usable' ? 'selected' : '' ?>>ใช้ได้</option>
@@ -372,30 +359,20 @@ include __DIR__ . '/includes/header.php';
                     <option value="unused" <?= $filter_status === 'unused' ? 'selected' : '' ?>>ไม่ใช้</option>
                     <option value="overlap" <?= $filter_status === 'overlap' ? 'selected' : '' ?>>สถานะซ้ำซ้อน</option>
                 </select>
-            </div>
-
-            <!-- Search -->
-            <div class="relative flex-1 min-w-[180px]">
-                <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 text-xs">
-                    <i class="fa-solid fa-magnifying-glass"></i>
-                </span>
-                <input type="text" name="search" value="<?= htmlspecialchars($search) ?>" placeholder="ค้นหารหัส/ชื่อ..." 
-                       class="w-full bg-slate-50 border border-slate-200 pl-8 pr-3 py-1.5 sm:py-2 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 text-slate-700">
-            </div>
-            
-            <button type="submit" class="px-3 py-1.5 sm:py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition-colors">
-                กรอง
-            </button>
-        </form>
+</label>
+        <label class="sena-filter-field sena-filter-full"><span class="sena-filter-label">ค้นหารายการตรวจ</span>
+<input type="search" name="search" value="<?= htmlspecialchars($search) ?>" placeholder="รหัสครุภัณฑ์ ชื่อรายการ หรือผู้รับผิดชอบ" class="sena-filter-control">
+</label>
+        <div class="sena-filter-actions"><button type="submit" class="sena-filter-submit">ค้นหา / กรอง</button><a href="inspection.php?year=<?= $year ?>" class="sena-filter-reset">ล้างตัวกรอง</a></div>
+    </form>
 
         <!-- Right Action Buttons -->
-        <div class="flex items-center gap-2 flex-wrap">
+        <div class="sena-filter-actions">
             
             <!-- BUTTON: Copy from Previous Year -->
             <button type="button" onclick="openCopyModal(<?= $year ?>)" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-all" title="คัดลอกรายการจากปีก่อนหน้ามาตรวจสอบ">
                 <i class="fa-solid fa-copy text-xs"></i>
-                <span class="hidden sm:inline">นำเข้าจากปีก่อนหน้า</span>
-                <span class="sm:hidden">คัดลอกปีก่อน</span>
+                <span>นำเข้าจากปีก่อนหน้า</span>
             </button>
 
             <!-- BUTTON: Add New Item -->
@@ -405,7 +382,7 @@ include __DIR__ . '/includes/header.php';
             </button>
 
             <!-- Reports link -->
-            <a href="reports.php?year=<?= $year ?>" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium transition-all">
+            <a href="reports.php?source=inspection&amp;year=<?= $year ?>" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium transition-all">
                 <i class="fa-solid fa-print text-xs text-slate-400"></i>
                 <span>รายงาน</span>
             </a>

@@ -257,44 +257,36 @@ include __DIR__ . '/includes/header.php';
 
 <!-- 2. SEARCH & FILTER TOOLBAR -->
 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs space-y-3">
-    <form method="GET" action="equipment.php" class="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
-        <div class="relative flex-1">
-            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 text-sm">
-                <i class="fa-solid fa-magnifying-glass"></i>
-            </span>
-            <input type="text" name="search" value="<?= htmlspecialchars($search) ?>" 
-                   placeholder="ค้นหารหัสครุภัณฑ์ / ชื่อรายการ / สถานที่/ผู้รับผิดชอบ"
-                   class="w-full bg-slate-50 border border-slate-200 pl-10 pr-4 py-2.5 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-slate-700">
-        </div>
-
-        <div class="flex flex-wrap items-center gap-2.5">
-            <!-- Category Filter -->
-            <select name="cat" class="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                <option value="">หมวด: ทั้งหมด</option>
+    <form method="GET" action="equipment.php" class="sena-filter-grid"><label class="sena-filter-field sena-filter-wide"><span class="sena-filter-label">ค้นหาครุภัณฑ์</span>
+<input type="search" name="search" value="<?= htmlspecialchars($search) ?>" placeholder="รหัสครุภัณฑ์ ชื่อรายการ หรือผู้รับผิดชอบ" class="sena-filter-control">
+</label>
+        <label class="sena-filter-field"><span class="sena-filter-label">หมวดทะเบียน</span>
+<select name="cat" class="sena-filter-control">
+                <option value="">ทุกหมวด</option>
                 <?php foreach ($categories as $cat): ?>
                     <option value="<?= htmlspecialchars($cat) ?>" <?= $filter_cat === $cat ? 'selected' : '' ?>><?= htmlspecialchars($cat) ?></option>
                 <?php endforeach; ?>
             </select>
-
-            <!-- Status Filter -->
-            <select name="status" class="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                <option value="">สถานะ: ทั้งหมด</option>
+</label>
+        <label class="sena-filter-field"><span class="sena-filter-label">สถานะ</span>
+<select name="status" class="sena-filter-control">
+                <option value="">ทุกสถานะ</option>
                 <option value="unverified" <?= ($filter_status??'') === 'unverified' ? 'selected' : '' ?>>ยังไม่ยืนยัน</option>
 <option value="active" <?= $filter_status === 'active' ? 'selected' : '' ?>>ใช้ได้ (พร้อมใช้งาน)</option>
                 <option value="damaged" <?= $filter_status === 'damaged' ? 'selected' : '' ?>>ชำรุด (รอซ่อม)</option>
-                <option value="disposed">&#3592;&#3635;&#3627;&#3609;&#3656;&#3634;&#3618;&#3649;&#3621;&#3657;&#3623;</option><option value="unused">&#3652;&#3617;&#3656;&#3651;&#3594;&#3657;</option>
+                <option value="disposed" <?= $filter_status === 'disposed' ? 'selected' : '' ?>>&#3592;&#3635;&#3627;&#3609;&#3656;&#3634;&#3618;&#3649;&#3621;&#3657;&#3623;</option><option value="unused" <?= $filter_status === 'unused' ? 'selected' : '' ?>>&#3652;&#3617;&#3656;&#3651;&#3594;&#3657;</option>
 <option value="degraded" <?= $filter_status === 'degraded' ? 'selected' : '' ?>>เสื่อมคุณภาพ</option>
             </select>
-
-            <!-- Location Filter -->
-            <select name="loc" class="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 max-w-[180px]">
-                <option value="">สถานที่/ผู้รับผิดชอบ: ทั้งหมด</option>
+</label>
+        <label class="sena-filter-field sena-filter-wide"><span class="sena-filter-label">สถานที่/ผู้รับผิดชอบ</span>
+<select name="loc" class="sena-filter-control">
+                <option value="">ทั้งหมด</option>
                 <?php foreach ($locations as $loc): ?>
                     <option value="<?= htmlspecialchars($loc) ?>" <?= $filter_loc === $loc ? 'selected' : '' ?>><?= htmlspecialchars($loc) ?></option>
                 <?php endforeach; ?>
             </select>
-
-            <!-- Search Button -->
+</label>
+        <div class="sena-filter-actions"><!-- Search Button -->
             <button type="submit" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium shadow-sm transition-all">
                 <i class="fa-solid fa-magnifying-glass text-xs"></i>
                 <span>ค้นหา</span>
@@ -311,7 +303,8 @@ include __DIR__ . '/includes/header.php';
                 <i class="fa-regular fa-file-excel text-emerald-600"></i>
                 <span>ส่งออก Excel</span>
             </a>
-        </div>
+
+<a href="equipment.php" class="sena-filter-reset">ล้างตัวกรอง</a></div>
     </form>
 </div>
 

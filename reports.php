@@ -58,38 +58,29 @@ include __DIR__ . '/includes/header.php';
 
 <!-- 1. TOP FILTERS & ACTION BUTTONS -->
 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs no-print">
-    <form method="GET" action="reports.php" class="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
-        
-        <div class="flex flex-wrap items-center gap-3">
-            <label class="text-xs">แหล่งข้อมูล <select name="source" onchange="this.form.submit()" class="border rounded-xl px-3 py-2">
+    <form method="GET" action="reports.php" class="sena-filter-grid"><label class="sena-filter-field"><span class="sena-filter-label">แหล่งข้อมูล</span>
+<select name="source" onchange="this.form.submit()" class="sena-filter-control">
              <option value="registry" <?=$source==='registry'?'selected':''?>>ทะเบียนหลักทั้งหมด</option><option value="inspection" <?=$source==='inspection'?'selected':''?>>บัญชีตรวจประจำปี</option>
-            </select></label>
-            <!-- Fiscal Year -->
-            <div class="flex items-center gap-2">
-                <span class="text-xs font-medium text-slate-500">ปีงบประมาณ</span>
-                <select name="year" <?=$source==='registry'?'disabled':''?> onchange="this.form.submit()" class="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2 font-medium focus:ring-2 focus:ring-indigo-500">
+            </select>
+</label>
+        <label class="sena-filter-field"><span class="sena-filter-label">ปีงบประมาณ</span>
+<select name="year" <?=$source==='registry'?'disabled':''?> onchange="this.form.submit()" class="sena-filter-control">
                     <?php foreach ($year_options as $y): ?>
                         <option value="<?= $y ?>" <?= $year === (int)$y ? 'selected' : '' ?>>พ.ศ. <?= $y ?></option>
                     <?php endforeach; ?>
                 </select>
-            </div>
-
-            <!-- Report Type -->
-            <div class="flex items-center gap-2">
-                <span class="text-xs font-medium text-slate-500">ประเภทรายงาน</span>
-                <select name="type" class="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500">
+</label>
+        <label class="sena-filter-field sena-filter-wide"><span class="sena-filter-label">ประเภทรายงาน</span>
+<select name="type" class="sena-filter-control">
                     <option value="">ทั้งหมด</option>
                     <option value="all" <?= $report_type === 'all' ? 'selected' : '' ?>>รายการทั้งหมดจากแหล่งที่เลือก</option>
                     <option value="damaged" <?= $report_type === 'damaged' ? 'selected' : '' ?>>รายงานครุภัณฑ์ชำรุด</option>
                     <option value="degraded" <?= $report_type === 'degraded' ? 'selected' : '' ?>>รายงานครุภัณฑ์เสื่อมคุณภาพ</option>
                     <option value="dispose" <?= $report_type === 'dispose' ? 'selected' : '' ?>>รายงานสูญไป/ไม่ใช้</option>
                 </select>
-            </div>
-
-            <!-- Status -->
-            <div class="flex items-center gap-2">
-                <span class="text-xs font-medium text-slate-500">สถานะ</span>
-                <select name="status" class="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500">
+</label>
+        <label class="sena-filter-field"><span class="sena-filter-label">สถานะ</span>
+<select name="status" class="sena-filter-control">
                     <option value="">ทั้งหมด</option>
                     <option value="usable" <?= $filter_status === 'usable' ? 'selected' : '' ?>>ใช้ได้</option>
                     <option value="damaged" <?= $filter_status === 'damaged' ? 'selected' : '' ?>>ชำรุด</option>
@@ -98,23 +89,22 @@ include __DIR__ . '/includes/header.php';
                     <?php if($source==='inspection'):?><option value="lost" <?=$filter_status==='lost'?'selected':''?>>สูญไป</option><?php else:?><option value="disposed" <?=$filter_status==='disposed'?'selected':''?>>จำหน่ายแล้ว</option><?php endif;?>
                     <option value="unused" <?=$filter_status==='unused'?'selected':''?>>ไม่ใช้</option>
                 </select>
-            </div>
-
-            <label class="text-xs">หมวด <select name="cat" class="border rounded-xl px-3 py-2 max-w-48"><option value="">ทั้งหมด</option><?php foreach($category_options as $cat):?><option value="<?=htmlspecialchars($cat)?>" <?=$filter_cat===$cat?'selected':''?>><?=htmlspecialchars($cat)?></option><?php endforeach;?></select></label>
-            <!-- Location -->
-            <div class="flex items-center gap-2">
-                <span class="text-xs font-medium text-slate-500">สถานที่/ผู้รับผิดชอบ</span>
-                <select name="loc" class="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500 max-w-[170px]">
+</label>
+        <label class="sena-filter-field"><span class="sena-filter-label">หมวดทะเบียน</span>
+<select name="cat" class="sena-filter-control"><option value="">ทั้งหมด</option><?php foreach($category_options as $cat):?><option value="<?=htmlspecialchars($cat)?>" <?=$filter_cat===$cat?'selected':''?>><?=htmlspecialchars($cat)?></option><?php endforeach;?></select>
+</label>
+        <label class="sena-filter-field sena-filter-wide"><span class="sena-filter-label">สถานที่/ผู้รับผิดชอบ</span>
+<select name="loc" class="sena-filter-control">
                     <option value="">ทั้งหมด</option>
                     <?php foreach ($locations as $l): ?>
                         <option value="<?= htmlspecialchars($l) ?>" <?= $filter_loc === $l ? 'selected' : '' ?>><?= htmlspecialchars($l) ?></option>
                     <?php endforeach; ?>
                 </select>
-            </div>
-        </div>
-
-        <!-- Action Buttons -->
-        <div class="flex items-center gap-2.5">
+</label>
+        <label class="sena-filter-field sena-filter-wide"><span class="sena-filter-label">ค้นหาในรายงาน</span>
+<input type="search" name="search" value="<?=htmlspecialchars(trim($_GET['search']??''))?>" placeholder="รหัสครุภัณฑ์หรือชื่อรายการ" class="sena-filter-control">
+</label><!-- Action Buttons -->
+        <div class="sena-filter-actions">
             <button type="submit" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium shadow-xs transition-all">
                 <i class="fa-solid fa-magnifying-glass text-xs"></i>
                 <span>แสดงรายงาน</span>
@@ -127,7 +117,7 @@ include __DIR__ . '/includes/header.php';
                 <i class="fa-regular fa-file-excel"></i>
                 <span>ส่งออก Excel</span>
             </a>
-        </div>
+        <a href="reports.php?source=<?= $source ?>&amp;year=<?= $year ?>" class="sena-filter-reset">ล้างตัวกรอง</a></div>
     </form>
 </div>
 

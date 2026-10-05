@@ -106,6 +106,8 @@ $app_logo = !empty($app_settings['logo_url']) ? $app_settings['logo_url'] : 'ass
             }
         }
     </style>
+    <link rel="stylesheet" href="assets/filter-ui.css?v=<?=filemtime(__DIR__.'/../assets/filter-ui.css')?>">
+    <script src="assets/filter-ui.js?v=<?=filemtime(__DIR__.'/../assets/filter-ui.js')?>" defer></script>
 </head>
 <body class="bg-slate-100 text-slate-800 antialiased min-h-screen flex">
 
@@ -302,4 +304,4 @@ $app_logo = !empty($app_settings['logo_url']) ? $app_settings['logo_url'] : 'ass
         </div>
 
         <!-- MAIN PAGE CONTENT CONTAINER -->
-        <main class="flex-1 p-3.5 sm:p-6 space-y-4 sm:space-y-6">
+        <main class="flex-1 min-w-0 p-3.5 sm:p-6 space-y-4 sm:space-y-6 <?=in_array($active_page,['equipment','inspection','reports'],true)?'sena-readable-content':''?>">

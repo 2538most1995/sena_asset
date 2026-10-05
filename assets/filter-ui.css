@@ -1,0 +1,54 @@
+.sena-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: start;
+    gap: 18px 16px;
+}
+.sena-filter-field { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.sena-filter-wide { grid-column: span 2; }
+.sena-filter-full { grid-column: 1 / -1; }
+.sena-filter-label { font-size: 14px; font-weight: 500; line-height: 1.7; color: #475569; overflow-wrap: anywhere; }
+.sena-filter-control {
+    box-sizing: border-box;
+    width: 100%; min-width: 0; max-width: none;
+    min-height: 48px; padding: 11px 14px;
+    border: 1px solid #cbd5e1; border-radius: 12px;
+    background-color: #f8fafc; color: #1e293b;
+    font: inherit; font-size: 16px; line-height: 1.6;
+    transition: border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
+}
+select.sena-filter-control { padding-right: 34px; }
+.sena-filter-control:focus-visible { outline: 2px solid #6366f1; outline-offset: 2px; background-color: #fff; }
+.sena-filter-control:disabled { background-color: #f1f5f9; color: #64748b; cursor: not-allowed; }
+.sena-filter-control::placeholder { color: #64748b; opacity: 1; }
+.sena-filter-selection { color: #334155; font-size: 13px; line-height: 1.8; overflow-wrap: anywhere; white-space: normal; }
+.sena-filter-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; grid-column: 1 / -1; min-width: 0; }
+.sena-filter-actions > button, .sena-filter-actions > a {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-height: 44px; padding: 10px 16px; border-radius: 12px;
+    font-size: 14px; font-weight: 500; line-height: 1.7;
+    white-space: normal; overflow-wrap: anywhere; text-align: center;
+    transition: background-color 150ms ease, transform 120ms ease-out;
+}
+.sena-filter-actions > :focus-visible { outline: 2px solid #6366f1; outline-offset: 2px; }
+.sena-filter-actions > :active { transform: scale(.98); }
+.sena-filter-submit { background: #4f46e5; color: #fff; }
+.sena-filter-reset { color: #475569; background: #f8fafc; border: 1px solid #cbd5e1; }
+.sena-readable-content th { font-size: 14px; line-height: 1.7; }
+.sena-readable-content td { font-size: 14px; line-height: 1.7; }
+@media (max-width: 1100px) {
+    .sena-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+    .sena-filter-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+    .sena-filter-wide { grid-column: auto; }
+    .sena-filter-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .sena-filter-actions > button, .sena-filter-actions > a { width: 100%; min-width: 0; padding: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .sena-filter-control, .sena-filter-actions > button, .sena-filter-actions > a { transition: none; }
+    .sena-filter-actions > :active { transform: none; }
+}
+@media print {
+    .sena-readable-content th, .sena-readable-content td { font-size: 10px; }
+}
