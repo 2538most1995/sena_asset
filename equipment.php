@@ -1207,6 +1207,7 @@ function printQR(code, name) {
         <head>
             <meta charset="utf-8">
             <title>QR Code - ${code}</title>
+            <?php include __DIR__ . '/includes/favicon.php'; ?>
             <style>
                 body { text-align: center; font-family: 'Prompt', sans-serif, system-ui; padding: 30px; }
                 .card { border: 2px dashed #6366f1; border-radius: 16px; padding: 24px; display: inline-block; max-width: 320px; }

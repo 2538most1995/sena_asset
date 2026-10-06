@@ -28,6 +28,7 @@ $app_logo = !empty($app_settings['logo_url']) ? $app_settings['logo_url'] : 'ass
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($page_title) ?> - SENA_Asset</title>
+    <?php include __DIR__ . '/favicon.php'; ?>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Chart.js CDN -->

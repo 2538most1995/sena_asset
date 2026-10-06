@@ -111,6 +111,7 @@ $current_db_user = $username ?? 'root';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>เข้าสู่ระบบ - SENA_Asset</title>
+    <?php include __DIR__ . '/includes/favicon.php'; ?>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Font Awesome 6 -->
