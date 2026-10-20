@@ -441,7 +441,7 @@ include __DIR__ . '/includes/header.php';
                             <button type="button" onclick="openEditModal(<?= htmlspecialchars(json_encode($it), ENT_QUOTES, 'UTF-8') ?>)" class="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-slate-100 transition-colors" title="แก้ไข">
                                 <i class="fa-solid fa-pen text-xs"></i>
                             </button>
-                            <button type="button" onclick="printQR(<?= (int)$it['id'] ?>, <?= htmlspecialchars(json_encode($it['equipment_code'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($it['equipment_name'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP), ENT_QUOTES, 'UTF-8') ?>)" title="พิมพ์ QR" class="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-slate-100 transition-colors">
+                            <button type="button" onclick="printQR(<?= (int)$it['id'] ?>, <?= htmlspecialchars(json_encode($it['equipment_code'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($it['equipment_name'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($it['location'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP), ENT_QUOTES, 'UTF-8') ?>)" title="พิมพ์ QR" class="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-slate-100 transition-colors">
                                 <i class="fa-solid fa-qrcode text-xs"></i>
                             </button>
                         </div>
@@ -545,7 +545,7 @@ include __DIR__ . '/includes/header.php';
                                     <button type="button" onclick="openEditModal(<?= htmlspecialchars(json_encode($it), ENT_QUOTES, 'UTF-8') ?>)" title="แก้ไข" class="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-slate-100 transition-colors">
                                         <i class="fa-solid fa-pen text-xs"></i>
                                     </button>
-                                    <button type="button" onclick="printQR(<?= (int)$it['id'] ?>, <?= htmlspecialchars(json_encode($it['equipment_code'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($it['equipment_name'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP), ENT_QUOTES, 'UTF-8') ?>)" title="พิมพ์ QR" class="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-slate-100 transition-colors">
+                                    <button type="button" onclick="printQR(<?= (int)$it['id'] ?>, <?= htmlspecialchars(json_encode($it['equipment_code'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($it['equipment_name'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($it['location'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP), ENT_QUOTES, 'UTF-8') ?>)" title="พิมพ์ QR" class="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-slate-100 transition-colors">
                                         <i class="fa-solid fa-qrcode text-xs"></i>
                                     </button>
                                     <button type="button" onclick="confirmDelete(<?= $it['id'] ?>, '<?= htmlspecialchars($it['equipment_name']) ?>')" title="ลบ" class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-slate-100 transition-colors">
@@ -1076,7 +1076,7 @@ function editModalItem() {
 // Print QR Code from Modal
 function printModalQR() {
     if (currentModalData && currentModalData.id) {
-        printQR(currentModalData.id, currentModalData.equipment_code || '', currentModalData.equipment_name || '');
+        printQR(currentModalData.id, currentModalData.equipment_code || '', currentModalData.equipment_name || '', currentModalData.location || '');
     }
 }
 
@@ -1240,12 +1240,13 @@ function confirmDelete(id, name) {
 function publicAssetURL(id) {
     return SenaAssetQR.url(window.location.href, id, <?= (int)$registry_year ?>);
 }
-function printQR(id, code, name) {
+function printQR(id, code, name, location) {
     const qrURL = publicAssetURL(id);
     const escapeLabel = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
     code = escapeLabel(code || 'ยังไม่ระบุรหัส');
-    name = escapeLabel(name);
-    const win = window.open('', '_blank', 'width=450,height=450');
+    name = escapeLabel(String(name ?? '').trim() || 'ยังไม่ระบุชื่อรายการ');
+    location = escapeLabel(String(location ?? '').trim() || 'ยังไม่ระบุสถานที่/ผู้รับผิดชอบ');
+    const win = window.open('', '_blank', 'width=500,height=650');
     if (!win) { alert('กรุณาอนุญาตหน้าต่างป๊อปอัปเพื่อพิมพ์ QR Code'); return; }
     win.opener = null;
     win.document.write(`
@@ -1256,10 +1257,14 @@ function printQR(id, code, name) {
             <title>QR Code - ${code}</title>
             <?php include __DIR__ . '/includes/favicon.php'; ?>
             <style>
-                body { text-align: center; font-family: 'Prompt', sans-serif, system-ui; padding: 30px; }
-                .card { border: 2px dashed #6366f1; border-radius: 16px; padding: 24px; display: inline-block; max-width: 320px; }
-                h3 { margin: 12px 0 4px; font-size: 16px; color: #1e293b; }
-                p { font-size: 12px; color: #64748b; margin: 0; }
+                body { text-align: center; font-family: system-ui, 'Thonburi', 'Leelawadee UI', sans-serif; padding: 20px; line-height: 1.6; }
+                * { box-sizing: border-box; }
+                .card { border: 2px dashed #6366f1; border-radius: 16px; padding: 24px; display: inline-block; width: 100%; max-width: 360px; break-inside: avoid; }
+                .card img { display: block; margin: 0 auto; }
+                h3 { margin: 12px 0 8px; font-size: 16px; color: #1e293b; overflow-wrap: anywhere; }
+                p { font-size: 13px; color: #334155; margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+                .label { display: block; font-size: 11px; color: #64748b; margin-bottom: 2px; }
+                @media print { body { margin: 0; padding: 8mm; } .card { border-color: #475569; } }
                 .sub { font-size: 10px; color: #94a3b8; margin-top: 8px; }
             </style>
         </head>
@@ -1267,7 +1272,8 @@ function printQR(id, code, name) {
             <div class="card">
                 <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrURL)}" width="180" height="180" />
                 <h3>${code}</h3>
-                <p>${name}</p>
+                <p><span class="label">ชื่อรายการ</span>${name}</p>
+                <p><span class="label">สถานที่/ผู้รับผิดชอบ</span>${location}</p>
                 <div class="sub">สกร.อำเภอเสนา</div>
             </div>
             <script>window.addEventListener('load', () => window.print());<\/script>
