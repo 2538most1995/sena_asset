@@ -20,7 +20,6 @@ $default_inspector = $u ? $u['fullname'] : 'เจ้าหน้าที่พ
 $id = (int)$data['id'];
 $status = $data['status'] ?? 'usable'; // 'usable', 'damaged', 'degraded', 'lost', 'unused'
 $remarks = trim($data['remarks'] ?? '');
-$inspector = !empty($data['inspector']) ? trim($data['inspector']) : $default_inspector;
 
 $usable = ($status === 'usable') ? 1 : 0;
 $damaged = ($status === 'damaged') ? 1 : 0;
@@ -39,6 +38,8 @@ try {
     }
 
     $fiscal_year = (int)$current['fiscal_year'];
+    $inspector=array_key_exists('inspector',$data)?trim((string)$data['inspector']):($current['inspector']?:$default_inspector);
+    if(mb_strlen($inspector)>100)throw new RuntimeException('ชื่อผู้ตรวจต้องไม่เกิน 100 ตัวอักษร');
 
     if (isset($data['type']) && $data['type'] === 'update_remarks') {
         $remarks = trim($data['remarks'] ?? '');

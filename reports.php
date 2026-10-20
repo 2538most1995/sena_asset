@@ -65,11 +65,7 @@ include __DIR__ . '/includes/header.php';
             </select>
 </label>
         <label class="sena-filter-field"><span class="sena-filter-label">ปีงบประมาณ</span>
-<select name="year"  onchange="this.form.submit()" class="sena-filter-control">
-                    <?php foreach ($year_options as $y): ?>
-                        <option value="<?= $y ?>" <?= $year === (int)$y ? 'selected' : '' ?>>พ.ศ. <?= $y ?></option>
-                    <?php endforeach; ?>
-                </select>
+<input type="number" name="year" value="<?= $year ?>" min="2500" max="2700" required list="report-year-options" class="sena-filter-control"><datalist id="report-year-options"><?php foreach($year_options as $y):?><option value="<?= (int)$y ?>"><?php endforeach;?></datalist>
 </label>
         <label class="sena-filter-field sena-filter-wide"><span class="sena-filter-label">ประเภทรายงาน</span>
 <select name="type" class="sena-filter-control">

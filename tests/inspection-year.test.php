@@ -1,0 +1,45 @@
+<?php
+require __DIR__.'/../config/database.php';
+require __DIR__.'/../includes/inspection_year_service.php';
+require __DIR__.'/mysql_fixture.php';sena_test_database($pdo,$host);
+function year_check($ok,$message){if(!$ok)throw new RuntimeException($message);}
+function rejected(callable $action){try{$action();}catch(Throwable $e){return;}throw new RuntimeException('Expected rejection');}
+$pdo->exec("INSERT INTO equipment_registry(id,equipment_name,image_url) VALUES(1,'Asset one','uploads/one.jpg'),(2,'Asset two','uploads/two.jpg'),(3,'Extra target','uploads/extra.jpg')");
+$insert=$pdo->prepare('INSERT INTO inspection_items(id,registry_id,item_number,item_name,asset_code,fiscal_year,status_usable,status_damaged,is_overlap,inspector,remarks,image_url) VALUES(?,?,?,?,?,?,1,1,1,?,?,?)');
+foreach([[101,1,1,'Source one','A',2568,'Source inspector','Source notes','uploads/one.jpg'],[102,2,2,'Source two','B',2568,'Source inspector','Source notes','uploads/two.jpg'],[201,1,1,'Old target','A',2571,'Old inspector','Old notes','uploads/one.jpg'],[202,3,2,'Extra target','C',2571,'Old inspector','Old notes','uploads/extra.jpg']] as $row)$insert->execute($row);
+$sourceBefore=$pdo->query('SELECT * FROM inspection_items WHERE fiscal_year=2568 ORDER BY id')->fetchAll();
+$targetBefore=$pdo->query('SELECT * FROM inspection_items WHERE fiscal_year=2571 ORDER BY id')->fetchAll();
+rejected(fn()=>sena_copy_inspection_year($pdo,2568,2571,false,false));
+year_check($pdo->query('SELECT * FROM inspection_items WHERE fiscal_year=2571 ORDER BY id')->fetchAll()===$targetBefore,'No replacement without explicit option');
+rejected(fn()=>sena_copy_inspection_year($pdo,2568,2568,false,true));
+rejected(fn()=>sena_copy_inspection_year($pdo,2567,2571,false,true));
+year_check($pdo->query('SELECT * FROM inspection_items WHERE fiscal_year=2571 ORDER BY id')->fetchAll()===$targetBefore,'Missing/same source must not change destination');
+$result=sena_copy_inspection_year($pdo,2568,2571,false,true,'Edited inspector');
+year_check($result['count']===2&&$result['replaced']===2,'Overwrite produces exactly the source set');
+$backupPath=sena_backup_directory($pdo).'/'.$result['backup_id'].'.json';
+$backup=json_decode(file_get_contents($backupPath),true);year_check(in_array(202,array_column($backup['tables']['inspection_items'],'id')),'Backup contains removed target observation');
+year_check((int)$pdo->query('SELECT registry_id FROM inspection_items WHERE id=201')->fetchColumn()===1,'Existing linked observation ID retained');
+year_check((int)$pdo->query('SELECT COUNT(*) FROM inspection_items WHERE id=202')->fetchColumn()===0,'Extra target observations replaced');
+year_check((int)$pdo->query('SELECT COUNT(*) FROM equipment_registry WHERE id=3')->fetchColumn()===1,'Registry asset remains archived');
+year_check((int)$pdo->query("SELECT COUNT(*) FROM inspection_items WHERE fiscal_year=2571 AND status_usable=1 AND status_damaged=1 AND is_overlap=1 AND inspector='Edited inspector'")->fetchColumn()===2,'Preserve multiple states and requested inspector');
+year_check($pdo->query('SELECT * FROM inspection_items WHERE fiscal_year=2568 ORDER BY id')->fetchAll()===$sourceBefore,'Source remains unchanged');
+sena_copy_inspection_year($pdo,2568,2571,true,true,'');
+year_check((int)$pdo->query("SELECT COUNT(*) FROM inspection_items WHERE fiscal_year=2571 AND status_usable=0 AND status_damaged=0 AND is_overlap=0 AND remarks='' AND inspector='Source inspector'")->fetchColumn()===2,'Reset only target states, preserve source inspector when blank');
+sena_update_inspection_assignment($pdo,201,2571,'New inspector');
+year_check($pdo->query('SELECT inspector FROM inspection_items WHERE id=201')->fetchColumn()==='New inspector','Inspector can be edited');
+sena_update_inspection_assignment($pdo,201,2574,'Moved inspector');
+year_check((int)$pdo->query('SELECT registry_id FROM inspection_items WHERE id=201 AND fiscal_year=2574')->fetchColumn()===1,'Typed year move retains stable asset link');
+year_check($pdo->query('SELECT image_url FROM inspection_items WHERE id=201')->fetchColumn()==='uploads/one.jpg','Year move retains photo');
+sena_copy_inspection_year($pdo,2568,2571,true,true);
+year_check((int)$pdo->query('SELECT COUNT(*) FROM inspection_items WHERE fiscal_year=2571')->fetchColumn()===2,'A moved copy must not reserve its old destination source key');
+year_check((int)$pdo->query('SELECT fiscal_year FROM inspection_items WHERE id=201')->fetchColumn()===2574,'Recopy does not change the moved observation');
+rejected(fn()=>sena_update_inspection_assignment($pdo,201,2568,'Should not save'));
+year_check($pdo->query('SELECT inspector FROM inspection_items WHERE id=201')->fetchColumn()==='Moved inspector','Conflict preserves existing assignment');
+rejected(fn()=>sena_update_inspection_assignment($pdo,201,9999,'Invalid'));
+$insert->execute([301,3,1,'Rollback target','C',2575,'Keep','Keep','uploads/extra.jpg']);
+$beforeRollback=$pdo->query('SELECT * FROM inspection_items WHERE fiscal_year=2575')->fetchAll();
+$pdo->exec("CREATE TRIGGER fail_copy BEFORE INSERT ON inspection_items FOR EACH ROW BEGIN IF NEW.fiscal_year=2575 AND NEW.item_number=2 THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Fixture failure'; END IF; END");
+rejected(fn()=>sena_copy_inspection_year($pdo,2568,2575,true,true));
+year_check($pdo->query('SELECT * FROM inspection_items WHERE fiscal_year=2575')->fetchAll()===$beforeRollback,'Failed copy rolls back whole target replacement');
+$directory=sena_backup_directory($pdo);foreach(glob($directory.'/*.json') as $file)unlink($file);@rmdir($directory);
+echo "Editable inspector/year, conflict guards, overwrite backup, stable links/photos, source preservation, reset and atomic rollback passed\n";

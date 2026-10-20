@@ -11,13 +11,15 @@ require_once __DIR__ . '/includes/image_helper.php';
 require_once __DIR__ . '/includes/inspection_location.php';
 require_login();
 require_once __DIR__.'/includes/asset_link_service.php';
+require_once __DIR__.'/includes/inspection_year_service.php';
 
 $flash_msg = '';
 $flash_type = 'success';
+if(empty($_SESSION['csrf_token']))$_SESSION['csrf_token']=bin2hex(random_bytes(32));
 
 // Selected Fiscal Year (default 2568, or from GET/POST)
 $year = (int)($_REQUEST['year'] ?? 2568);
-if ($year < 2500 || $year > 2650) {
+if ($year < 2500 || $year > 2700) {
     $year = 2568;
 }
 
@@ -30,75 +32,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $action = $_POST['action'];
 
     if ($action === 'copy_from_year') {
-        $source_year = (int)($_POST['source_year'] ?? 2568);
-        $target_year = (int)($_POST['target_year'] ?? $year);
-        $reset_status = !empty($_POST['reset_status']);
-
         try {
-            if($source_year<2500||$source_year>2700||$target_year<2500||$target_year>2700)throw new InvalidArgumentException('ปีงบประมาณไม่ถูกต้อง');
-            $targetCheck=$pdo->prepare('SELECT COUNT(*) FROM inspection_items WHERE fiscal_year=?');$targetCheck->execute([$target_year]);
-            if($targetCheck->fetchColumn())throw new RuntimeException('ปีงบประมาณปลายทางมีบัญชีตรวจอยู่แล้ว กรุณาเลือกปีที่ยังไม่มีบัญชี');
-            // Check count in source year
-            $stmt = $pdo->prepare("SELECT * FROM inspection_items WHERE fiscal_year = ? ORDER BY item_number ASC");
-            $stmt->execute([$source_year]);
-            $source_rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-            if (empty($source_rows)) {
-                $flash_msg = "ไม่พบรายการครุภัณฑ์ในปีก่อนหน้า (ปีงบประมาณ $source_year)";
-                $flash_type = 'error';
-            } else {
-                $insert_stmt = $pdo->prepare("
-                    INSERT INTO inspection_items 
-                    (item_number, item_name, asset_code, asset_id_code, status_usable, status_damaged, status_degraded, status_lost, status_unused, remarks, fiscal_year, location, inspector, category, price, is_overlap, image_url, registry_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ");
-
-                $copied_count = 0;
-                $u = current_user();
-                $current_inspector = $u ? $u['fullname'] : 'เจ้าหน้าที่พัสดุ';
-
-                $pdo->beginTransaction();
-                foreach ($source_rows as $sr) {
-                    $usable = $reset_status ? 0 : (int)$sr['status_usable'];
-                    $damaged = $reset_status ? 0 : (int)$sr['status_damaged'];
-                    $degraded = $reset_status ? 0 : (int)$sr['status_degraded'];
-                    $lost = $reset_status ? 0 : (int)$sr['status_lost'];
-                    $unused = $reset_status ? 0 : (int)$sr['status_unused'];
-                    $overlap = $reset_status ? 0 : (int)$sr['is_overlap'];
-                    $rm = $reset_status ? '' : ($sr['remarks'] ?? '');
-
-                    $insert_stmt->execute([
-                        $sr['item_number'],
-                        $sr['item_name'],
-                        $sr['asset_code'],
-                        $sr['asset_id_code'],
-                        $usable,
-                        $damaged,
-                        $degraded,
-                        $lost,
-                        $unused,
-                        $rm,
-                        $target_year,
-                        $sr['location'],
-                        $current_inspector,
-                        $sr['category'],
-                        $sr['price'],
-                        $overlap,
-                        $sr['image_url'],
-                        $sr['registry_id']
-                    ]);
-                    $copied_count++;
-                }
-                $pdo->commit();
-
-                $year = $target_year;
-                $flash_msg = "นำเข้าและคัดลอกรายการตรวจครุภัณฑ์จำนวน $copied_count รายการ จากปีงบประมาณ $source_year มายังปีงบประมาณ $target_year เรียบร้อยแล้ว" . ($reset_status ? ' (รีเซ็ตสถานะเป็นรอตรวจนับใหม่)' : '');
-                $flash_type = 'success';
-            }
-        } catch (\Throwable $e) {
-            if ($pdo->inTransaction()) $pdo->rollBack();
-            $flash_msg = "เกิดข้อผิดพลาดในการคัดลอก: " . $e->getMessage();
-            $flash_type = 'error';
+            if(!hash_equals($_SESSION['csrf_token'],(string)($_POST['csrf_token']??'')))throw new RuntimeException('กรุณาเปิดหน้านี้ใหม่ก่อนยืนยันนำเข้า');
+            $source_year=sena_fiscal_year($_POST['source_year']??'');
+            $target_year=sena_fiscal_year($_POST['target_year']??'');
+            $reset_status=!empty($_POST['reset_status']);
+            $copied=sena_copy_inspection_year($pdo,$source_year,$target_year,$reset_status,!empty($_POST['replace_target']),trim($_POST['inspector']??''));
+            $year=$target_year;
+            $copy_backup_id=$copied['backup_id'];
+            $flash_msg="นำเข้าบัญชีตรวจ {$copied['count']} รายการ จากปี $source_year ไปปี $target_year เรียบร้อยแล้ว".($copied['replaced']?' (แทนที่บัญชีเดิม)':'').($reset_status?' และตั้งสถานะเป็นรอตรวจนับ':'');
+        }catch(Throwable $e){
+            $flash_msg='เกิดข้อผิดพลาดในการคัดลอก: '.$e->getMessage();$flash_type='error';
         }
 
     } elseif ($action === 'create_item') {
@@ -139,7 +83,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $unused = ($status === 'unused') ? 1 : 0;
 
                 $u = current_user();
-                $inspector = $u ? $u['fullname'] : 'เจ้าหน้าที่พัสดุ';
+                $inspector = trim($_POST['inspector']??($u['fullname']??'เจ้าหน้าที่พัสดุ'));
+                if(mb_strlen($inspector)>100)throw new InvalidArgumentException('ชื่อผู้ตรวจต้องไม่เกิน 100 ตัวอักษร');
 
                 $stmt = $pdo->prepare("
                     INSERT INTO inspection_items 
@@ -186,7 +131,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
         if ($id > 0 && $item_name !== '' && !$upload_failed) {
             try {
-                $pdo->beginTransaction();
+                $assignment=$pdo->prepare('SELECT i.fiscal_year,i.inspector,COALESCE(i.price,e.unit_price) AS price FROM inspection_items i LEFT JOIN equipment_registry e ON e.id=i.registry_id WHERE i.id=?');$assignment->execute([$id]);$existingAssignment=$assignment->fetch(PDO::FETCH_ASSOC);
+                if(!$existingAssignment)throw new RuntimeException('ไม่พบรายการตรวจ');
+                if(!array_key_exists('price',$_POST))$price=$existingAssignment['price'];
+                $editYear=sena_fiscal_year($_POST['fiscal_year']??$existingAssignment['fiscal_year']);
+                sena_lock_inspection_years($pdo,[(int)$existingAssignment['fiscal_year'],$editYear],function()use($pdo,$id,$editYear,$existingAssignment,$uploaded_img,$item_name,$asset_code,$asset_id_code,$category,$location,$price,$remarks){
+                sena_update_inspection_assignment($pdo,$id,$editYear,trim($_POST['inspector']??($existingAssignment['inspector']??'')));
                 if ($uploaded_img) {
                     $stmt = $pdo->prepare("UPDATE inspection_items SET item_name = ?, asset_code = ?, asset_id_code = ?, category = ?, location = ?, price = ?, remarks = ?, image_url = ? WHERE id = ?");
                     $stmt->execute([$item_name, $asset_code, $asset_id_code, $category, $location, $price, $remarks, $uploaded_img, $id]);
@@ -195,8 +145,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $stmt->execute([$item_name, $asset_code, $asset_id_code, $category, $location, $price, $remarks, $id]);
                 }
                 sena_sync_inspection_details($pdo,$id);
-                $pdo->commit();
-                $flash_msg = 'อัปเดตรายละเอียดและรูปในบัญชีตรวจกับทะเบียนเรียบร้อยแล้ว';
+                });
+                $year=$editYear;
+                $flash_msg = 'อัปเดตผู้ตรวจ ปีงบประมาณ และรายละเอียดเรียบร้อยแล้ว';
                 $flash_type = 'success';
             } catch (\Throwable $e) {
                 if($pdo->inTransaction())$pdo->rollBack();
@@ -355,6 +306,8 @@ include __DIR__ . '/includes/header.php';
     </div>
 </div>
 
+<?php if(!empty($copy_backup_id)):?><p class="text-sm"><a class="text-indigo-700 underline" href="actions/data_backup.php?id=<?=htmlspecialchars($copy_backup_id)?>">ดาวน์โหลดข้อมูลสำรองก่อนแทนที่บัญชีตรวจ</a></p><?php endif;?>
+
 <!-- 1. TOP FILTER BAR & ANNUAL ROLLOVER ACTIONS -->
 <div class="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-200/80 shadow-2xs space-y-3">
     
@@ -362,12 +315,9 @@ include __DIR__ . '/includes/header.php';
         
         <!-- Filter Form -->
         <form method="GET" action="inspection.php" id="filter-form" class="sena-filter-grid"><label class="sena-filter-field"><span class="sena-filter-label">ปีงบประมาณ</span>
-<select name="year" onchange="document.getElementById('filter-form').submit()"
-                        class="sena-filter-control">
-                    <?php foreach ($year_options as $y): ?>
-                        <option value="<?= $y ?>" <?= $year === (int)$y ? 'selected' : '' ?>>พ.ศ. <?= $y ?></option>
-                    <?php endforeach; ?>
-                </select>
+<input type="number" name="year" id="inspection-filter-year" value="<?= $year ?>" min="2500" max="2700" step="1" required list="inspection-year-options" class="sena-filter-control">
+<datalist id="inspection-year-options"><?php foreach($year_options as $y):?><option value="<?= (int)$y ?>"><?php endforeach;?></datalist>
+<small class="text-slate-500">พิมพ์ปี พ.ศ. หรือเลือกจากรายการ</small>
 </label>
         <label class="sena-filter-field sena-filter-wide"><span class="sena-filter-label">สถานที่/ผู้รับผิดชอบ</span>
 <select name="loc" onchange="document.getElementById('filter-form').submit()" class="sena-filter-control">
@@ -996,7 +946,7 @@ include __DIR__ . '/includes/header.php';
                         </td>
 
                         <td class="py-3 px-3 whitespace-nowrap text-slate-600">
-                            <?= htmlspecialchars($it['inspector'] ?: '-') ?>
+                            <button type="button" title="แก้ไขผู้ตรวจและปีงบประมาณ" class="text-indigo-700 underline decoration-dotted underline-offset-4 py-2" onclick='openEditInspectionModal(<?=json_encode($it,JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP|JSON_UNESCAPED_UNICODE)?>)'><?= htmlspecialchars($it['inspector'] ?: 'ระบุผู้ตรวจ') ?></button>
                         </td>
 
                         <!-- Actions (Edit, Photo, Delete) -->
@@ -1212,25 +1162,27 @@ include __DIR__ . '/includes/header.php';
             </button>
         </div>
 
-        <form method="POST" action="inspection.php" class="p-5 space-y-4 text-xs">
+        <form method="POST" action="inspection.php" onsubmit="return confirmCopyYear(this)" class="p-5 space-y-4 text-xs max-h-[75vh] overflow-y-auto">
             <input type="hidden" name="action" value="copy_from_year">
+            <input type="hidden" name="csrf_token" value="<?=htmlspecialchars($_SESSION['csrf_token'])?>">
 
             <div>
                 <label class="block text-slate-600 font-medium mb-1">คัดลอกข้อมูลจากปีงบประมาณต้นทาง *</label>
-                <select name="source_year" class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-slate-800 font-semibold focus:ring-2 focus:ring-indigo-500">
-                    <?php foreach ($existing_years as $ey): ?>
-                        <option value="<?= $ey ?>" <?= (int)$ey === 2568 ? 'selected' : '' ?>>ปีงบประมาณ พ.ศ. <?= $ey ?></option>
-                    <?php endforeach; ?>
-                </select>
+                <input type="number" name="source_year" id="copy-source-year" value="<?= in_array(2568,array_map('intval',$existing_years),true)?2568:($existing_years[0]??$year-1) ?>" min="2500" max="2700" step="1" required list="inspection-year-options" class="sena-filter-control">
             </div>
 
             <div>
                 <label class="block text-slate-600 font-medium mb-1">ไปยังปีงบประมาณเป้าหมาย *</label>
-                <input type="number" name="target_year" id="copy-target-year" value="<?= $year ?>" required 
+                <input type="number" name="target_year" min="2500" max="2700" step="1" list="inspection-year-options" id="copy-target-year" value="<?= $year ?>" required
                        class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-slate-800 font-bold focus:ring-2 focus:ring-indigo-500">
                 <p class="text-[10px] text-slate-400 mt-1">เช่น 2570, 2569</p>
             </div>
 
+            <label class="sena-filter-field"><span class="sena-filter-label">ผู้ตรวจของปีปลายทาง</span><input type="text" name="inspector" maxlength="100" value="<?=htmlspecialchars(current_user()['fullname']??'')?>" class="sena-filter-control"><small class="text-slate-500">เว้นว่างเพื่อใช้ชื่อผู้ตรวจตามปีต้นทาง</small></label>
+            <label class="flex items-start gap-3 p-3 rounded-xl border border-rose-200 bg-rose-50 text-rose-900">
+                <input type="checkbox" name="replace_target" value="1" class="mt-1">
+                <span><strong>แทนที่บัญชีตรวจปีปลายทาง</strong><small class="block mt-1 leading-relaxed">ใช้เมื่อปีปลายทางมีข้อมูลแล้ว ระบบสำรองข้อมูลก่อนแทนที่ และคงทะเบียนกับรูปที่เชื่อมอยู่</small></span>
+            </label>
             <div class="p-3 rounded-xl bg-amber-50 border border-amber-200/80 space-y-2">
                 <label class="flex items-start gap-2.5 cursor-pointer text-amber-900">
                     <input type="checkbox" name="reset_status" value="1" checked class="mt-0.5 rounded border-amber-300 text-indigo-600 focus:ring-0">
@@ -1241,7 +1193,7 @@ include __DIR__ . '/includes/header.php';
                 </label>
             </div>
 
-            <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+            <div class="sticky bottom-0 bg-white pt-3 pb-1 border-t border-slate-100 flex items-center justify-end gap-2.5">
                 <button type="button" onclick="closeCopyModal()" class="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors">
                     ยกเลิก
                 </button>
@@ -1268,9 +1220,12 @@ include __DIR__ . '/includes/header.php';
             </button>
         </div>
 
-        <form method="POST" action="inspection.php" enctype="multipart/form-data" class="p-5 space-y-4 text-xs">
+        <form method="POST" action="inspection.php" enctype="multipart/form-data" class="p-5 space-y-4 text-xs max-h-[75vh] overflow-y-auto">
             <input type="hidden" name="action" value="create_item">
-            <input type="hidden" name="fiscal_year" value="<?= $year ?>">
+            <div class="grid sm:grid-cols-2 gap-3">
+<label class="sena-filter-field"><span class="sena-filter-label">ปีงบประมาณ (พ.ศ.) *</span><input type="number" name="fiscal_year" id="add-ins-year" value="<?= $year ?>" min="2500" max="2700" required list="inspection-year-options" class="sena-filter-control"></label>
+<label class="sena-filter-field"><span class="sena-filter-label">ผู้ตรวจ</span><input type="text" name="inspector" maxlength="100" value="<?=htmlspecialchars(current_user()['fullname']??'')?>" class="sena-filter-control"></label>
+</div>
 
             <div>
                 <label class="block text-slate-600 font-medium mb-1">ชื่อรายการครุภัณฑ์ *</label>
@@ -1328,7 +1283,7 @@ include __DIR__ . '/includes/header.php';
                        class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500">
             </div>
 
-            <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+            <div class="sticky bottom-0 bg-white pt-3 pb-1 border-t border-slate-100 flex items-center justify-end gap-2.5">
                 <button type="button" onclick="closeAddInspectionModal()" class="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors">
                     ยกเลิก
                 </button>
@@ -1350,9 +1305,15 @@ include __DIR__ . '/includes/header.php';
             </button>
         </div>
 
-        <form method="POST" action="inspection.php?year=<?= $year ?>" enctype="multipart/form-data" class="p-5 space-y-4 text-xs">
+        <form method="POST" action="inspection.php?year=<?= $year ?>" enctype="multipart/form-data" class="p-5 space-y-4 text-xs max-h-[75vh] overflow-y-auto">
             <input type="hidden" name="action" value="update_item">
             <input type="hidden" name="id" id="edit-ins-id">
+            <div class="grid sm:grid-cols-2 gap-3">
+                <label class="sena-filter-field"><span class="sena-filter-label">ปีงบประมาณ (พ.ศ.) *</span><input type="number" name="fiscal_year" id="edit-ins-year" min="2500" max="2700" required list="inspection-year-options" class="sena-filter-control"></label>
+                <label class="sena-filter-field"><span class="sena-filter-label">ผู้ตรวจ</span><input type="text" name="inspector" id="edit-ins-inspector" maxlength="100" class="sena-filter-control"></label>
+            </div>
+            <p class="text-slate-500 leading-relaxed">การเปลี่ยนปีจะย้ายรายการนี้ไปปีที่ระบุ โดยคงรูปและทะเบียนเดิม หากครุภัณฑ์ชิ้นนี้มีในปีปลายทางแล้ว ระบบจะแจ้งให้ตรวจสอบ</p>
+
 
             <div>
                 <label class="block text-slate-600 font-medium mb-1">ชื่อรายการ *</label>
@@ -1382,7 +1343,7 @@ include __DIR__ . '/includes/header.php';
                 <textarea name="remarks" id="edit-ins-remarks" rows="2" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500"></textarea>
             </div>
 
-            <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+            <div class="sticky bottom-0 bg-white pt-3 pb-1 border-t border-slate-100 flex items-center justify-end gap-2">
                 <button type="button" onclick="closeInspectModal()" class="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600">ยกเลิก</button>
                 <button type="submit" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium">บันทึกการแก้ไข</button>
             </div>
@@ -1902,8 +1863,18 @@ function saveQuickRemark() {
 // -------------------------------------------------------------
 // STANDARD MODALS (COPY, ADD, EDIT, PHOTO VIEW)
 // -------------------------------------------------------------
+function confirmCopyYear(form) {
+    const source=form.elements.source_year.value;
+    const target=form.elements.target_year.value;
+    if(source===target){alert('ปีต้นทางและปีปลายทางต้องไม่เป็นปีเดียวกัน');return false;}
+    return !form.elements.replace_target.checked || confirm(`ยืนยันแทนที่บัญชีตรวจปี ${target} ด้วยข้อมูลปี ${source}? ระบบจะสำรองบัญชีเดิมก่อนแทนที่`);
+}
+function enteredInspectionYear(fallback) {
+    const value=Number(document.getElementById('inspection-filter-year').value);
+    return Number.isInteger(value)&&value>=2500&&value<=2700?value:fallback;
+}
 function openCopyModal(year) {
-    document.getElementById('copy-target-year').value = year;
+    document.getElementById('copy-target-year').value = enteredInspectionYear(year);
     document.getElementById('copy-modal').classList.remove('hidden');
 }
 function closeCopyModal() {
@@ -1911,6 +1882,7 @@ function closeCopyModal() {
 }
 
 function openAddInspectionModal() {
+    document.getElementById('add-ins-year').value=enteredInspectionYear(<?= $year ?>);
     document.getElementById('add-inspect-modal').classList.remove('hidden');
 }
 function closeAddInspectionModal() {
@@ -1919,6 +1891,8 @@ function closeAddInspectionModal() {
 
 function openEditInspectionModal(data) {
     document.getElementById('edit-ins-id').value = data.id;
+    document.getElementById('edit-ins-year').value=data.fiscal_year;
+    document.getElementById('edit-ins-inspector').value=data.inspector||'';
     document.getElementById('edit-ins-name').value = data.item_name;
     document.getElementById('edit-ins-code').value = data.asset_code || '';
     document.getElementById('edit-ins-category').value = data.effective_category || data.category || '';
