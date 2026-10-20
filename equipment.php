@@ -9,7 +9,8 @@ require_once __DIR__ . '/includes/pagination.php';
 require_once __DIR__ . '/includes/image_helper.php';
 require_once __DIR__.'/config/auth.php';require_login();
 require_once __DIR__.'/includes/asset_link_service.php';
-$registry_year=max(2500,min(2700,(int)($_POST['fiscal_year']??$_GET['year']??2568)));
+require_once __DIR__.'/includes/equipment_code_service.php';
+$registry_year=max(2500,min(2700,(int)($_POST['fiscal_year']??$_GET['year']??sena_default_inspection_year($pdo))));
 sena_link_inspection_year($pdo,$registry_year);
 $registry_source=($_GET['view']??'')==='all'?'equipment_registry':sena_registry_source_sql($registry_year);
 
@@ -46,6 +47,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
 
         if ($name !== '' && !$upload_failed) {
             try {
+                sena_assert_code_available($pdo,$code,$registry_year);
                 $pdo->beginTransaction();
                 $stmt = $pdo->prepare("INSERT INTO equipment_registry (asset_type, category, equipment_name, equipment_code, brand_description, unit_price, acquisition_method, location, remarks, acquisition_date, status, image_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->execute([$asset_type, $cat, $name, $code, $brand, $price, $method, $loc, $remarks, $date, $status, $uploaded_img]);
@@ -87,6 +89,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
 
         if ($id > 0 && !$upload_failed) {
             try {
+                sena_assert_code_available($pdo,$code,$registry_year,$id);
                 $pdo->beginTransaction();
                 $oldStatus=$pdo->prepare('SELECT status FROM '.sena_registry_source_sql($registry_year).' WHERE id=?');$oldStatus->execute([$id]);$previousStatus=$oldStatus->fetchColumn();
                 if ($uploaded_img) {
@@ -954,6 +957,7 @@ include __DIR__ . '/includes/header.php';
 
 <!-- INTERACTIVE SCRIPTS -->
 <script src="assets/asset-qr.js"></script>
+<script src="assets/equipment-code-check.js?v=<?=filemtime(__DIR__.'/assets/equipment-code-check.js')?>"></script>
 <script>
 let currentModalData = null;
 

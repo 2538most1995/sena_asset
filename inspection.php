@@ -12,15 +12,16 @@ require_once __DIR__ . '/includes/inspection_location.php';
 require_login();
 require_once __DIR__.'/includes/asset_link_service.php';
 require_once __DIR__.'/includes/inspection_year_service.php';
+require_once __DIR__.'/includes/equipment_code_service.php';
 
 $flash_msg = '';
 $flash_type = 'success';
 if(empty($_SESSION['csrf_token']))$_SESSION['csrf_token']=bin2hex(random_bytes(32));
 
 // Selected Fiscal Year (default 2568, or from GET/POST)
-$year = (int)($_REQUEST['year'] ?? 2568);
+$year = (int)($_POST['year'] ?? $_GET['year'] ?? sena_default_inspection_year($pdo));
 if ($year < 2500 || $year > 2700) {
-    $year = 2568;
+    $year = sena_default_inspection_year($pdo);
 }
 
 sena_link_inspection_year($pdo,$year);
@@ -69,6 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
         if ($item_name !== '' && !$upload_failed) {
             try {
+                sena_assert_code_available($pdo,$asset_code,$target_year);
                 $lockName=sena_year_lock_key($pdo,$target_year);$lock=$pdo->prepare('SELECT GET_LOCK(?,10)');$lock->execute([$lockName]);
                 if((int)$lock->fetchColumn()!==1)throw new RuntimeException('กรุณาลองบันทึกอีกครั้ง');
                 $pdo->beginTransaction();
@@ -135,6 +137,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 if(!$existingAssignment)throw new RuntimeException('ไม่พบรายการตรวจ');
                 if(!array_key_exists('price',$_POST))$price=$existingAssignment['price'];
                 $editYear=sena_fiscal_year($_POST['fiscal_year']??$existingAssignment['fiscal_year']);
+                $identity=$pdo->prepare('SELECT registry_id FROM inspection_items WHERE id=?');$identity->execute([$id]);
+                sena_assert_code_available($pdo,$asset_code,$editYear,(int)$identity->fetchColumn(),$id);
                 sena_lock_inspection_years($pdo,[(int)$existingAssignment['fiscal_year'],$editYear],function()use($pdo,$id,$editYear,$existingAssignment,$uploaded_img,$item_name,$asset_code,$asset_id_code,$category,$location,$price,$remarks){
                 sena_update_inspection_assignment($pdo,$id,$editYear,trim($_POST['inspector']??($existingAssignment['inspector']??'')));
                 if ($uploaded_img) {
@@ -1220,7 +1224,7 @@ include __DIR__ . '/includes/header.php';
             </button>
         </div>
 
-        <form method="POST" action="inspection.php" enctype="multipart/form-data" class="p-5 space-y-4 text-xs max-h-[75vh] overflow-y-auto">
+        <form method="POST" action="inspection.php?year=<?= $year ?>" enctype="multipart/form-data" class="p-5 space-y-4 text-xs max-h-[75vh] overflow-y-auto">
             <input type="hidden" name="action" value="create_item">
             <div class="grid sm:grid-cols-2 gap-3">
 <label class="sena-filter-field"><span class="sena-filter-label">ปีงบประมาณ (พ.ศ.) *</span><input type="number" name="fiscal_year" id="add-ins-year" value="<?= $year ?>" min="2500" max="2700" required list="inspection-year-options" class="sena-filter-control"></label>
@@ -1386,6 +1390,7 @@ include __DIR__ . '/includes/header.php';
 </div>
 
 <!-- CHARTS & INTERACTIVE SCRIPT -->
+<script src="assets/equipment-code-check.js?v=<?=filemtime(__DIR__.'/assets/equipment-code-check.js')?>"></script>
 <script>
 let inspectChartInstance = null;
 

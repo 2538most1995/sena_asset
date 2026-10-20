@@ -166,7 +166,7 @@ $app_logo = !empty($app_settings['logo_url']) ? $app_settings['logo_url'] : 'ass
                     <i class="fa-solid fa-tags text-base w-5 text-center"></i><span>จัดการหมวดครุภัณฑ์</span>
                 </a>
                 <a href="reconciliation.php" class="flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-medium transition-all <?= $active_page === 'reconciliation' ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white' : 'text-slate-300 hover:text-white hover:bg-white/5' ?>">
-                    <i class="fa-solid fa-code-compare text-base w-5 text-center"></i><span>กระทบยอดข้อมูล</span>
+                    <i class="fa-solid fa-code-compare text-base w-5 text-center"></i><span>เช็ครหัสครุภัณฑ์</span>
                 </a>
 
                 <!-- 5. รายงาน -->

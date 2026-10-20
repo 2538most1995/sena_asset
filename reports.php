@@ -24,8 +24,11 @@ $logo_url = !empty($settings['logo_url']) ? $settings['logo_url'] : 'assets/img/
 require_once __DIR__.'/config/auth.php';require_login();
 require_once __DIR__.'/includes/report_service.php';
 require_once __DIR__.'/includes/pagination.php';
-sena_link_inspection_year($pdo,max(2500,min(2700,(int)($_GET['year']??2568))));
-$query=sena_report_query($_GET);$source=$query['source'];$year=$query['year'];
+require_once __DIR__.'/includes/equipment_code_service.php';
+$report_input=$_GET;
+$report_input['year']=$report_input['year']??sena_default_inspection_year($pdo);
+sena_link_inspection_year($pdo,max(2500,min(2700,(int)($report_input['year']))));
+$query=sena_report_query($report_input);$source=$query['source'];$year=$query['year'];
 $report_type=trim($_GET['type']??'');$filter_status=trim($_GET['status']??'');$filter_loc=trim($_GET['loc']??'');$filter_cat=trim($_GET['cat']??'');
 $count=$pdo->prepare($query['count_sql']);$count->execute($query['params']);$report_count=(int)$count->fetchColumn();
 $registry_count=(int)$pdo->query('SELECT COUNT(*) FROM '.sena_registry_source_sql($year))->fetchColumn();
