@@ -8,38 +8,32 @@ require_once __DIR__ . '/config/database.php';
 require_once __DIR__.'/config/auth.php';require_login();
 require_once __DIR__.'/includes/asset_link_service.php';
 
-$settings_file = __DIR__ . '/config/settings.json';
-$app_settings = file_exists($settings_file) ? (json_decode(file_get_contents($settings_file), true) ?: []) : [];
-$default_year = (int)($app_settings['fiscal_year'] ?? 2568);
+require_once __DIR__.'/includes/equipment_code_service.php';
 
-// -------------------------------------------------------------
-// 1. ดึงรายการปีงบประมาณทั้งหมดที่มีในระบบ
-// -------------------------------------------------------------
+// Use the same newest populated account as the registry and inspection pages.
+$default_year = $pdo ? sena_default_inspection_year($pdo) : (int)date('Y') + 543 + ((int)date('n') >= 10 ? 1 : 0);
 $existing_years = [];
 $master_equipment_count = 0;
-
 try {
     if ($pdo) {
-        $stmt_years = $pdo->query("SELECT DISTINCT fiscal_year FROM inspection_items WHERE fiscal_year IS NOT NULL ORDER BY fiscal_year DESC");
-        $existing_years = $stmt_years->fetchAll(PDO::FETCH_COLUMN);
-
-        $dashboardYear=max(2500,min(2700,(int)($_GET['year']??$default_year)));
-        sena_link_inspection_year($pdo,$dashboardYear);
-        $master_equipment_count = (int)$pdo->query('SELECT COUNT(*) FROM '.sena_registry_source_sql($dashboardYear))->fetchColumn();
+        $existing_years = $pdo->query('SELECT DISTINCT fiscal_year FROM inspection_items WHERE fiscal_year BETWEEN 2500 AND 2700 ORDER BY fiscal_year DESC')->fetchAll(PDO::FETCH_COLUMN);
     }
-} catch (\Throwable $e) {}
-
-if (empty($existing_years)) {
-    $existing_years = [$default_year];
+} catch (Throwable $e) {}
+if (!$existing_years) $existing_years = [$default_year];
+$selected_year = is_scalar($_GET['year'] ?? null) ? (string)$_GET['year'] : '';
+if ($selected_year !== 'all' && !in_array($selected_year, array_map('strval', $existing_years), true)) {
+    $selected_year = (string)$default_year;
 }
-
-// ปีงบประมาณที่เลือกแสดง (ค่าเริ่มต้นคือปีที่ตั้งไว้ หรือปีล่าสุดในระบบ)
-$selected_year = $_GET['year'] ?? '';
-if ($selected_year !== 'all') {
-    if ($selected_year === '' || !in_array((int)$selected_year, array_map('intval', $existing_years))) {
-        $selected_year = in_array($default_year, array_map('intval', $existing_years)) ? (string)$default_year : (string)$existing_years[0];
+try {
+    if ($pdo) {
+        if ($selected_year === 'all') {
+            $master_equipment_count = (int)$pdo->query('SELECT COUNT(DISTINCT e.id) FROM equipment_registry e JOIN inspection_items i ON i.registry_id=e.id')->fetchColumn();
+        } else {
+            sena_link_inspection_year($pdo,(int)$selected_year);
+            $master_equipment_count = (int)$pdo->query('SELECT COUNT(*) FROM '.sena_registry_source_sql((int)$selected_year))->fetchColumn();
+        }
     }
-}
+} catch (Throwable $e) {}
 
 // -------------------------------------------------------------
 // 2. คำนวณสถิติตามปีงบประมาณที่เลือก
@@ -135,9 +129,11 @@ $trend_data = [];
 try {
     if ($pdo) {
         // หมวดหมู่ครุภัณฑ์
-        $cat_sql = "SELECT COALESCE(NULLIF(category, ''), 'ไม่ระบุประเภท') as cat, COUNT(*) as cnt FROM equipment_registry GROUP BY cat ORDER BY cnt DESC LIMIT 5";
+        $cat_sql = "SELECT COALESCE(NULLIF(e.category, ''), NULLIF(i.category, ''), 'ไม่ระบุประเภท') as cat, COUNT(*) as cnt FROM inspection_items i LEFT JOIN equipment_registry e ON e.id=i.registry_id " .
+                   ($selected_year !== 'all' ? 'WHERE i.fiscal_year = ? ' : '') .
+                   'GROUP BY cat ORDER BY cnt DESC, cat ASC LIMIT 5';
         $cat_stmt = $pdo->prepare($cat_sql);
-        $cat_stmt->execute();
+        $cat_stmt->execute($selected_year !== 'all' ? [(int)$selected_year] : []);
         while ($r = $cat_stmt->fetch(PDO::FETCH_ASSOC)) {
             $category_labels[] = $r['cat'];
             $category_data[] = (int)$r['cnt'];
@@ -179,7 +175,7 @@ include __DIR__ . '/includes/header.php';
                     <?= $selected_year === 'all' ? 'ผลการตรวจสอบครุภัณฑ์ (รวมทุกปีงบประมาณ)' : 'ผลการตรวจสอบครุภัณฑ์ ประจำปีงบประมาณ พ.ศ. ' . htmlspecialchars($selected_year) ?>
                 </h2>
                 <?php if ($master_equipment_count > 0): ?>
-                <a href="equipment.php" class="text-[11px] px-2.5 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium inline-flex items-center gap-1 transition-colors" title="ดูทะเบียนครุภัณฑ์หลักทั้งหมดของหน่วยงาน">
+                <a href="equipment.php?year=<?= $selected_year === 'all' ? $default_year : (int)$selected_year ?>" class="text-[11px] px-2.5 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium inline-flex items-center gap-1 transition-colors" title="ดูทะเบียนครุภัณฑ์หลักทั้งหมดของหน่วยงาน">
                     <i class="fa-solid fa-boxes-stacked text-[10px] text-indigo-500"></i>
                     <span>ทะเบียนครุภัณฑ์หลัก <?= number_format($master_equipment_count) ?> รายการ</span>
                 </a>
