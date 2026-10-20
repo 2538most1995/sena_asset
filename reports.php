@@ -24,10 +24,11 @@ $logo_url = !empty($settings['logo_url']) ? $settings['logo_url'] : 'assets/img/
 require_once __DIR__.'/config/auth.php';require_login();
 require_once __DIR__.'/includes/report_service.php';
 require_once __DIR__.'/includes/pagination.php';
+sena_link_inspection_year($pdo,max(2500,min(2700,(int)($_GET['year']??2568))));
 $query=sena_report_query($_GET);$source=$query['source'];$year=$query['year'];
 $report_type=trim($_GET['type']??'');$filter_status=trim($_GET['status']??'');$filter_loc=trim($_GET['loc']??'');$filter_cat=trim($_GET['cat']??'');
 $count=$pdo->prepare($query['count_sql']);$count->execute($query['params']);$report_count=(int)$count->fetchColumn();
-$registry_count=(int)$pdo->query('SELECT COUNT(*) FROM equipment_registry')->fetchColumn();
+$registry_count=(int)$pdo->query('SELECT COUNT(*) FROM '.sena_registry_source_sql($year))->fetchColumn();
 $stats_stmt=$pdo->prepare("SELECT COUNT(*) total,COALESCE(SUM(status_usable),0) usable,COALESCE(SUM(status_damaged),0) damaged,COALESCE(SUM(status_degraded),0) degraded,COALESCE(SUM(status_lost),0) lost,COALESCE(SUM(status_unused),0) unused FROM inspection_items WHERE fiscal_year=?");
 $stats_stmt->execute([$year]);$stats=$stats_stmt->fetch(PDO::FETCH_ASSOC);
 $per_page=sena_page_limit($_GET['limit']??25);$paging=sena_page_state($report_count,$per_page,$_GET['page']??1);$page=$paging['page'];$offset=$paging['offset'];
@@ -38,10 +39,10 @@ $stmt=$pdo->prepare($sql);$stmt->execute($query['params']);$preview_items=$stmt-
 if($source==='inspection'){
  $location_stmt=$pdo->prepare('SELECT DISTINCT effective_location FROM '.sena_inspection_source_sql().' WHERE fiscal_year=? AND effective_location IS NOT NULL ORDER BY effective_location');
  $location_stmt->execute([$year]);$locations=$location_stmt->fetchAll(PDO::FETCH_COLUMN);
-}else $locations=$pdo->query("SELECT DISTINCT location FROM equipment_registry WHERE location IS NOT NULL AND location<>'' ORDER BY location")->fetchAll(PDO::FETCH_COLUMN);
+}else $locations=$pdo->query("SELECT DISTINCT location FROM ".sena_registry_source_sql($year)." WHERE location IS NOT NULL AND location<>'' ORDER BY location")->fetchAll(PDO::FETCH_COLUMN);
 $category_sql=$source==='registry'
     ? "SELECT category_name FROM asset_categories WHERE registry_enabled=1 UNION SELECT category FROM equipment_registry WHERE category IS NOT NULL AND category<>'' ORDER BY 1"
-    : "SELECT DISTINCT category FROM inspection_items WHERE category IS NOT NULL AND category<>'' ORDER BY category";
+    : "SELECT DISTINCT effective_category FROM ".sena_inspection_source_sql()." WHERE fiscal_year=$year AND effective_category IS NOT NULL AND effective_category<>'' ORDER BY effective_category";
 $category_options=$pdo->query($category_sql)->fetchAll(PDO::FETCH_COLUMN);
 $year_options=$pdo->query('SELECT DISTINCT fiscal_year FROM inspection_items ORDER BY fiscal_year DESC')->fetchAll(PDO::FETCH_COLUMN);if(!in_array($year,$year_options))$year_options[]=$year;
 $export_url='?'.http_build_query(array_merge($_GET,['export'=>'excel']));
@@ -50,7 +51,7 @@ if($is_export){
  header('Content-Type: text/csv; charset=utf-8');header('Content-Disposition: attachment; filename="sena_'.$source.'_'.date('Ymd_His').'.csv"');
  $out=fopen('php://output','w');fwrite($out,"\xEF\xBB\xBF");
  fputcsv($out,['ลำดับ','รหัสครุภัณฑ์','รายการ','หมวดทะเบียน','ประเภทหัวกระดาษ','สถานที่/ผู้รับผิดชอบ','สถานะ','ราคา','ปีงบประมาณ','ชีตต้นฉบับ','แถวต้นฉบับ','หมายเหตุ','แหล่งข้อมูลสถานที่/ผู้รับผิดชอบ'],',','"','');
- foreach($preview_items as $i=>$r)fputcsv($out,array_map('sena_csv_cell',[$source==='registry'?$i+1:$r['item_number'],$r['asset_code'],$r['item_name'],$r['category'],$r['asset_type'],$r['location'],sena_report_status($r,$source),$r['price'],$r['fiscal_year'],$r['source_sheet'],$r['source_row'],$r['remarks'],$source==='inspection'?sena_inspection_location_origin($r):'ทะเบียนหลัก']),',','"','');
+ foreach($preview_items as $i=>$r)fputcsv($out,array_map('sena_csv_cell',[$r['item_number'],$r['asset_code'],$r['item_name'],$r['category'],$r['asset_type'],$r['location'],sena_report_status($r,$source),$r['price'],$r['fiscal_year'],$r['source_sheet'],$r['source_row'],$r['remarks'],$source==='inspection'?sena_inspection_location_origin($r):'ทะเบียนหลัก']),',','"','');
  fclose($out);exit;
 }
 include __DIR__ . '/includes/header.php';
@@ -60,11 +61,11 @@ include __DIR__ . '/includes/header.php';
 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs no-print">
     <form method="GET" action="reports.php" class="sena-filter-grid"><label class="sena-filter-field"><span class="sena-filter-label">แหล่งข้อมูล</span>
 <select name="source" onchange="this.form.submit()" class="sena-filter-control">
-             <option value="registry" <?=$source==='registry'?'selected':''?>>ทะเบียนหลักทั้งหมด</option><option value="inspection" <?=$source==='inspection'?'selected':''?>>บัญชีตรวจประจำปี</option>
+             <option value="registry" <?=$source==='registry'?'selected':''?>>ทะเบียนตามบัญชีตรวจ</option><option value="inspection" <?=$source==='inspection'?'selected':''?>>บัญชีตรวจประจำปี</option>
             </select>
 </label>
         <label class="sena-filter-field"><span class="sena-filter-label">ปีงบประมาณ</span>
-<select name="year" <?=$source==='registry'?'disabled':''?> onchange="this.form.submit()" class="sena-filter-control">
+<select name="year"  onchange="this.form.submit()" class="sena-filter-control">
                     <?php foreach ($year_options as $y): ?>
                         <option value="<?= $y ?>" <?= $year === (int)$y ? 'selected' : '' ?>>พ.ศ. <?= $y ?></option>
                     <?php endforeach; ?>
@@ -122,7 +123,7 @@ include __DIR__ . '/includes/header.php';
 </div>
 
 <div class="grid sm:grid-cols-3 gap-4 no-print">
- <div class="bg-white rounded-xl border p-4"><p>ทะเบียนหลักทั้งหมด</p><strong class="text-3xl"><?=number_format($registry_count)?></strong></div>
+ <div class="bg-white rounded-xl border p-4"><p>ทะเบียนตามบัญชีตรวจ</p><strong class="text-3xl"><?=number_format($registry_count)?></strong></div>
  <div class="bg-white rounded-xl border p-4"><p>บัญชีตรวจปี <?=$year?></p><strong class="text-3xl"><?=number_format((int)$stats['total'])?></strong></div>
  <div class="bg-white rounded-xl border p-4"><p>รายการตามเงื่อนไขรายงาน</p><strong class="text-3xl"><?=number_format($report_count)?></strong></div>
 </div>
@@ -163,7 +164,7 @@ include __DIR__ . '/includes/header.php';
                 </div>
                 <h2 class="text-lg font-bold text-slate-900 leading-tight"><?= htmlspecialchars($settings['org_name'] ?? 'สำนักงานส่งเสริมการเรียนรู้ระดับอำเภอเสนา') ?></h2>
                 <h3 class="text-base font-semibold text-slate-800">
-                    <?= $source==='registry'?'รายงานทะเบียนครุภัณฑ์หลัก':'รายงานบัญชีตรวจประจำปี' ?> (<?=number_format($report_count)?> รายการ)
+                    <?= $source==='registry'?'รายงานทะเบียนตามบัญชีตรวจ':'รายงานบัญชีตรวจประจำปี' ?> (<?=number_format($report_count)?> รายการ)
                 </h3>
                 <?php if($source==='inspection'):?><p class="text-xs text-slate-600">ปีงบประมาณ <?=$year?></p><p class="text-xs text-slate-500">สถานที่ว่างอ้างอิงทะเบียนปัจจุบันเมื่อรหัสตรงและมีสถานที่เดียว ไม่ใช่หลักฐานยืนยันสถานที่ย้อนหลัง</p><?php endif;?>
                 <p class="text-[11px] text-slate-500 font-light">ข้อมูล ณ วันที่ <?= date('j') ?> <?= ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][date('n')-1] ?> <?= (date('Y') + 543) ?></p>

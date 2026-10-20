@@ -10,12 +10,17 @@ function sena_inspection_source_sql(): string {
     $inspectionCode = sena_asset_code_sql('i.asset_code');
     // A repeated code is usable only when every matching record has the same nonblank location.
     // Including blanks in the distinct count prevents choosing a location from partial evidence.
-    return "(SELECT i.*, CASE WHEN NULLIF(TRIM(i.location),'') IS NOT NULL THEN TRIM(i.location)
+    return "(SELECT i.*,COALESCE(linked.category,i.category) AS effective_category,
+                COALESCE(linked.unit_price,i.price) AS effective_price,
+                CASE WHEN NULLIF(TRIM(i.location),'') IS NOT NULL THEN TRIM(i.location)
+                    WHEN NULLIF(TRIM(linked.location),'') IS NOT NULL THEN TRIM(linked.location)
                     WHEN m.location_count=1 THEN NULLIF(m.registry_location,'') ELSE NULL END AS effective_location,
                 CASE WHEN NULLIF(TRIM(i.location),'') IS NOT NULL THEN 'annual'
+                    WHEN NULLIF(TRIM(linked.location),'') IS NOT NULL THEN 'registry'
                     WHEN m.location_count=1 AND m.registry_location<>'' THEN 'registry'
                     WHEN m.location_count>1 THEN 'conflict' ELSE 'missing' END AS location_origin
             FROM inspection_items i
+            LEFT JOIN equipment_registry linked ON linked.id=i.registry_id
             LEFT JOIN (SELECT $registryCode AS code_key,
                         COUNT(DISTINCT COALESCE(TRIM(location),'')) AS location_count,
                         MIN(COALESCE(TRIM(location),'')) AS registry_location

@@ -211,6 +211,7 @@ function sena_ensure_schema_ready(PDO $pdo) {
             $needed = ['source_file' => 'VARCHAR(255) NULL', 'source_sheet' => 'VARCHAR(255) NULL',
                        'source_row' => 'INT NULL', 'source_key' => 'VARCHAR(500) NULL'];
             if ($table === 'inspection_items') $needed += [
+                'registry_id'=>'INT NULL',
                 'is_overlap'=>'TINYINT(1) DEFAULT 0','category'=>'VARCHAR(255) NULL',
                 'location'=>'VARCHAR(255) NULL','inspector'=>'VARCHAR(100) NULL',
                 'price'=>'DECIMAL(15,2) NULL','image_url'=>'VARCHAR(500) NULL'];
@@ -224,6 +225,10 @@ function sena_ensure_schema_ready(PDO $pdo) {
             }
             $indexes = $pdo->query("SHOW INDEX FROM `$table`")->fetchAll(PDO::FETCH_ASSOC);
             $names = array_column($indexes, 'Key_name');
+            if ($table === 'inspection_items' && !in_array('uq_year_registry', $names, true))
+                $pdo->exec("ALTER TABLE inspection_items ADD UNIQUE KEY uq_year_registry (fiscal_year, registry_id)");
+            if ($table === 'inspection_items' && !in_array('idx_registry_id', $names, true))
+                $pdo->exec("ALTER TABLE inspection_items ADD INDEX idx_registry_id (registry_id)");
             if (!in_array('uq_source_key', $names, true)) $pdo->exec("ALTER TABLE `$table` ADD UNIQUE KEY uq_source_key (source_key(191))");
             if ($table === 'inspection_items' && !in_array('idx_year_number', $names, true))
                 $pdo->exec("ALTER TABLE `$table` ADD INDEX idx_year_number (fiscal_year, item_number)");

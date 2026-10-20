@@ -5,6 +5,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/auth.php';
 if (!is_logged_in()) { http_response_code(401); echo json_encode(['success'=>false,'error'=>'กรุณาเข้าสู่ระบบ']); exit; }
 
+require_once __DIR__.'/../includes/asset_link_service.php';
 $raw = file_get_contents('php://input');
 $data = json_decode($raw, true);
 
@@ -64,6 +65,11 @@ try {
         $stmt->execute([$usable, $damaged, $degraded, $lost, $unused, $remarks, $inspector, $id]);
     }
 
+    if($status!==null){
+        sena_link_inspection_year($pdo,$fiscal_year);
+        $masterStatus=$status==='usable'?'active':(in_array($status,['damaged','degraded','unused'],true)?$status:'unverified');
+        $sync=$pdo->prepare('UPDATE equipment_registry e JOIN inspection_items i ON i.registry_id=e.id SET e.status=? WHERE i.id=?');$sync->execute([$masterStatus,$id]);
+    }
     // Return recalculated stats for real-time mobile UI update
     $stat_total = (int)$pdo->query("SELECT COUNT(*) FROM inspection_items WHERE fiscal_year = $fiscal_year")->fetchColumn();
     $stat_usable = (int)$pdo->query("SELECT COALESCE(SUM(status_usable),0) FROM inspection_items WHERE fiscal_year = $fiscal_year")->fetchColumn();

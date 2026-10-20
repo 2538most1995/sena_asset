@@ -9,6 +9,8 @@ require_once __DIR__ . '/includes/pagination.php';
 require_once __DIR__ . '/config/auth.php';
 require_once __DIR__ . '/includes/image_helper.php';
 require_once __DIR__ . '/includes/inspection_location.php';
+require_login();
+require_once __DIR__.'/includes/asset_link_service.php';
 
 $flash_msg = '';
 $flash_type = 'success';
@@ -18,6 +20,8 @@ $year = (int)($_REQUEST['year'] ?? 2568);
 if ($year < 2500 || $year > 2650) {
     $year = 2568;
 }
+
+sena_link_inspection_year($pdo,$year);
 
 // -------------------------------------------------------------
 // POST ACTIONS: Copy from previous year, Add, Edit, Delete item
@@ -31,6 +35,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $reset_status = !empty($_POST['reset_status']);
 
         try {
+            if($source_year<2500||$source_year>2700||$target_year<2500||$target_year>2700)throw new InvalidArgumentException('ปีงบประมาณไม่ถูกต้อง');
+            $targetCheck=$pdo->prepare('SELECT COUNT(*) FROM inspection_items WHERE fiscal_year=?');$targetCheck->execute([$target_year]);
+            if($targetCheck->fetchColumn())throw new RuntimeException('ปีงบประมาณปลายทางมีบัญชีตรวจอยู่แล้ว กรุณาเลือกปีที่ยังไม่มีบัญชี');
             // Check count in source year
             $stmt = $pdo->prepare("SELECT * FROM inspection_items WHERE fiscal_year = ? ORDER BY item_number ASC");
             $stmt->execute([$source_year]);
@@ -42,8 +49,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             } else {
                 $insert_stmt = $pdo->prepare("
                     INSERT INTO inspection_items 
-                    (item_number, item_name, asset_code, asset_id_code, status_usable, status_damaged, status_degraded, status_lost, status_unused, remarks, fiscal_year, location, inspector, category, price, is_overlap, image_url)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (item_number, item_name, asset_code, asset_id_code, status_usable, status_damaged, status_degraded, status_lost, status_unused, remarks, fiscal_year, location, inspector, category, price, is_overlap, image_url, registry_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ");
 
                 $copied_count = 0;
@@ -77,7 +84,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         $sr['category'],
                         $sr['price'],
                         $overlap,
-                        $sr['image_url']
+                        $sr['image_url'],
+                        $sr['registry_id']
                     ]);
                     $copied_count++;
                 }
@@ -99,22 +107,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $asset_id_code = trim($_POST['asset_id_code'] ?? '');
         $category = trim($_POST['category'] ?? 'ครุภัณฑ์สำนักงาน');
         $location = trim($_POST['location'] ?? '');
-        $price = (float)($_POST['price'] ?? 0);
+        $price = ($_POST['price']??'')===''?null:(float)$_POST['price'];
         $status = $_POST['status'] ?? 'pending';
         $remarks = trim($_POST['remarks'] ?? '');
         $target_year = (int)($_POST['fiscal_year'] ?? $year);
 
         // Upload photo if present
-        $uploaded_img = null;
-        if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+        $uploaded_img = null;$upload_failed=false;
+        if (isset($_FILES['image']) && $_FILES['image']['error'] !== UPLOAD_ERR_NO_FILE) {
             $img_res = processAndSaveEquipmentImage($_FILES['image']);
             if ($img_res['success']) {
                 $uploaded_img = $img_res['url'];
+            }else{
+                $upload_failed=true;$flash_msg=$img_res['error'];$flash_type='error';
             }
         }
 
-        if ($item_name !== '') {
+        if ($item_name !== '' && !$upload_failed) {
             try {
+                $lockName=sena_year_lock_key($pdo,$target_year);$lock=$pdo->prepare('SELECT GET_LOCK(?,10)');$lock->execute([$lockName]);
+                if((int)$lock->fetchColumn()!==1)throw new RuntimeException('กรุณาลองบันทึกอีกครั้ง');
+                $pdo->beginTransaction();
                 // Auto item number for target year
                 $max_num = (int)$pdo->query("SELECT MAX(item_number) FROM inspection_items WHERE fiscal_year = $target_year")->fetchColumn();
                 $new_num = $max_num + 1;
@@ -134,11 +147,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ");
                 $stmt->execute([$new_num, $item_name, $asset_code, $asset_id_code, $usable, $damaged, $degraded, $lost, $unused, $remarks, $target_year, $location, $inspector, $category, $price, $uploaded_img]);
+                $newInspectionId=(int)$pdo->lastInsertId();
+                sena_link_inspection_year($pdo,$target_year);
+                sena_sync_inspection_details($pdo,$newInspectionId);
+                $pdo->commit();$release=$pdo->prepare('SELECT RELEASE_LOCK(?)');$release->execute([$lockName]);
 
                 $year = $target_year;
                 $flash_msg = "เพิ่มรายการตรวจครุภัณฑ์ '$item_name' สำหรับปีงบประมาณ $target_year เรียบร้อยแล้ว";
                 $flash_type = 'success';
             } catch (\Throwable $e) {
+                if($pdo->inTransaction())$pdo->rollBack();
+                if(isset($lockName)){$release=$pdo->prepare('SELECT RELEASE_LOCK(?)');$release->execute([$lockName]);}
                 $flash_msg = "เกิดข้อผิดพลาด: " . $e->getMessage();
                 $flash_type = 'error';
             }
@@ -151,20 +170,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $asset_id_code = trim($_POST['asset_id_code'] ?? '');
         $category = trim($_POST['category'] ?? '');
         $location = trim($_POST['location'] ?? '');
-        $price = (float)($_POST['price'] ?? 0);
+        $price = ($_POST['price']??'')===''?null:(float)$_POST['price'];
         $remarks = trim($_POST['remarks'] ?? '');
 
         // Upload photo if present
-        $uploaded_img = null;
-        if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+        $uploaded_img = null;$upload_failed=false;
+        if (isset($_FILES['image']) && $_FILES['image']['error'] !== UPLOAD_ERR_NO_FILE) {
             $img_res = processAndSaveEquipmentImage($_FILES['image']);
             if ($img_res['success']) {
                 $uploaded_img = $img_res['url'];
+            }else{
+                $upload_failed=true;$flash_msg=$img_res['error'];$flash_type='error';
             }
         }
 
-        if ($id > 0 && $item_name !== '') {
+        if ($id > 0 && $item_name !== '' && !$upload_failed) {
             try {
+                $pdo->beginTransaction();
                 if ($uploaded_img) {
                     $stmt = $pdo->prepare("UPDATE inspection_items SET item_name = ?, asset_code = ?, asset_id_code = ?, category = ?, location = ?, price = ?, remarks = ?, image_url = ? WHERE id = ?");
                     $stmt->execute([$item_name, $asset_code, $asset_id_code, $category, $location, $price, $remarks, $uploaded_img, $id]);
@@ -172,9 +194,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $stmt = $pdo->prepare("UPDATE inspection_items SET item_name = ?, asset_code = ?, asset_id_code = ?, category = ?, location = ?, price = ?, remarks = ? WHERE id = ?");
                     $stmt->execute([$item_name, $asset_code, $asset_id_code, $category, $location, $price, $remarks, $id]);
                 }
-                $flash_msg = "อัปเดตรายละเอียดรายการตรวจเรียบร้อยแล้ว";
+                sena_sync_inspection_details($pdo,$id);
+                $pdo->commit();
+                $flash_msg = 'อัปเดตรายละเอียดและรูปในบัญชีตรวจกับทะเบียนเรียบร้อยแล้ว';
                 $flash_type = 'success';
             } catch (\Throwable $e) {
+                if($pdo->inTransaction())$pdo->rollBack();
+                if(isset($lockName)){$release=$pdo->prepare('SELECT RELEASE_LOCK(?)');$release->execute([$lockName]);}
                 $flash_msg = "เกิดข้อผิดพลาด: " . $e->getMessage();
                 $flash_type = 'error';
             }
@@ -189,6 +215,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $flash_msg = "ลบรายการตรวจครุภัณฑ์ออกจากบัญชีเรียบร้อยแล้ว";
                 $flash_type = 'success';
             } catch (\Throwable $e) {
+                if($pdo->inTransaction())$pdo->rollBack();
+                if(isset($lockName)){$release=$pdo->prepare('SELECT RELEASE_LOCK(?)');$release->execute([$lockName]);}
                 $flash_msg = "เกิดข้อผิดพลาด: " . $e->getMessage();
                 $flash_type = 'error';
             }
@@ -209,6 +237,7 @@ $offset = ($page - 1) * $per_page;
 $inspection_source=sena_inspection_source_sql();
 $where = ["fiscal_year = ?"];
 $params = [$year];
+if((int)($_GET['registry_id']??0)>0){$where[]='registry_id=?';$params[]=(int)$_GET['registry_id'];}
 
 if ($search !== '') {
     $where[] = "(item_name LIKE ? OR asset_code LIKE ? OR effective_location LIKE ?)";
@@ -715,7 +744,7 @@ include __DIR__ . '/includes/header.php';
                         <div class="flex-1 min-w-0">
                             <h4 class="font-bold text-slate-800 text-sm leading-snug line-clamp-2" title="<?= htmlspecialchars($it['item_name']) ?>">
                                 <?= htmlspecialchars($it['item_name']) ?>
-                            </h4>
+                            </h4><a href="equipment.php?year=<?= $year ?>&amp;registry_id=<?= (int)$it['registry_id'] ?>" class="block text-xs text-indigo-700 underline mt-1">เปิดทะเบียนรายการนี้</a>
 
                             <div class="flex items-center gap-1 text-[11px] text-slate-500 mt-1">
                                 <i class="fa-solid fa-location-dot text-rose-500 text-[10px] flex-shrink-0"></i>
@@ -875,7 +904,7 @@ include __DIR__ . '/includes/header.php';
                             <span class="cursor-pointer hover:text-indigo-600" onclick="copyAssetCode('<?= htmlspecialchars($it['asset_code']) ?>', event)" title="แตะเพื่อคัดลอก"><?= htmlspecialchars($it['asset_code'] ?: '-') ?></span>
                         </td>
                         <td class="py-3 px-3 font-medium text-slate-800">
-                            <span><?= htmlspecialchars($it['item_name']) ?></span>
+                            <span><?= htmlspecialchars($it['item_name']) ?></span><a href="equipment.php?year=<?= $year ?>&amp;registry_id=<?= (int)$it['registry_id'] ?>" class="block text-xs text-indigo-700 underline mt-1">เปิดทะเบียนรายการนี้</a>
                             <?php if ($has_img): ?>
                                 <span class="text-[10px] text-indigo-600 ml-1"><i class="fa-solid fa-paperclip"></i></span>
                             <?php endif; ?>
@@ -1892,9 +1921,9 @@ function openEditInspectionModal(data) {
     document.getElementById('edit-ins-id').value = data.id;
     document.getElementById('edit-ins-name').value = data.item_name;
     document.getElementById('edit-ins-code').value = data.asset_code || '';
-    document.getElementById('edit-ins-category').value = data.category || '';
+    document.getElementById('edit-ins-category').value = data.effective_category || data.category || '';
     document.getElementById('edit-ins-asset-id').value = data.asset_id_code || '';
-    document.getElementById('edit-ins-loc').value = data.location || '';
+    document.getElementById('edit-ins-loc').value = data.location || data.effective_location || '';
     document.getElementById('edit-ins-remarks').value = data.remarks || '';
     document.getElementById('edit-inspect-modal').classList.remove('hidden');
 }

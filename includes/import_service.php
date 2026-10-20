@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__.'/asset_link_service.php';
 /** Import normalized rows. A source row is the identity; repeated asset codes are retained. */
 function sena_import(PDO $pdo, string $type, array $rows, bool $replace = false, array $sheets = []): array {
     if (!in_array($type, ['registry', 'inspection'], true)) throw new InvalidArgumentException('ประเภทข้อมูลไม่ถูกต้อง');
@@ -17,8 +18,11 @@ function sena_import(PDO $pdo, string $type, array $rows, bool $replace = false,
                 $c=$normalizeCode($old['equipment_code']);if($c!=='')$legacy[$c][]=(int)$old['id'];
             }
         }
+        $inspectionIdentities=[];
         if ($replace && $type === 'inspection') {
             $years = array_unique(array_map(fn($r) => (int)($r['fiscal_year'] ?? 2568), $rows));
+            $oldRows=$pdo->prepare('SELECT * FROM inspection_items WHERE fiscal_year=? FOR UPDATE');
+            foreach($years as $year){$oldRows->execute([$year]);foreach($oldRows as $old)$inspectionIdentities[$year.':'.$old['item_number']][]=$old;}
             $del = $pdo->prepare('DELETE FROM inspection_items WHERE fiscal_year = ?');
             foreach ($years as $year) $del->execute([$year]);
         }
@@ -57,7 +61,17 @@ function sena_import(PDO $pdo, string $type, array $rows, bool $replace = false,
             $c=$normalizeCode($row['equipment_code']??'');
             $matchLegacy=$replace && $type==='registry' && ($incomingCodes[$c]??0)===1 && count($legacy[$c]??[])===1;
             if($matchLegacy){$identity->execute([$key]);$matchLegacy=!$identity->fetchColumn();}
-            if($matchLegacy){
+            $oldInspection=$inspectionIdentities[($row['fiscal_year']??2568).':'.($row['item_number']??0)]??[];
+            $oldInspection=count($oldInspection)===1?$oldInspection[0]:null;
+            if($oldInspection){
+                $sameCode=$normalizeCode($oldInspection['asset_code'])===$normalizeCode($row['asset_code']??'');
+                if(!$sameCode || ($normalizeCode($oldInspection['asset_code'])==='' && trim($oldInspection['item_name'])!==trim($name)))$oldInspection=null;
+            }
+            if($type==='inspection' && $replace && $oldInspection){
+                $restoreFields=array_merge(['id','registry_id','image_url','inspector'],$fields);
+                $restore=$pdo->prepare('INSERT INTO inspection_items (`'.implode('`,`',$restoreFields).'`) VALUES('.implode(',',array_fill(0,count($restoreFields),'?')).')');
+                $restore->execute(array_merge([$oldInspection['id'],$oldInspection['registry_id'],$oldInspection['image_url'],$oldInspection['inspector']],$values));$updated++;
+            }elseif($matchLegacy){
                 $legacyUpdate->execute(array_merge($values,[$legacy[$c][0]]));unset($legacy[$c]);$updated++;
             }else{
                 $stmt->execute($values);
@@ -81,9 +95,20 @@ function sena_import(PDO $pdo, string $type, array $rows, bool $replace = false,
         }
         if ($replace && $type==='registry') {
             if (!$kept) throw new InvalidArgumentException('Empty replacement is not allowed');
-            $purge=$pdo->prepare('DELETE FROM equipment_registry WHERE id NOT IN ('.implode(',',array_fill(0,count($kept),'?')).')');
+            $purge=$pdo->prepare('DELETE FROM equipment_registry WHERE NOT EXISTS (SELECT 1 FROM inspection_items i WHERE i.registry_id=equipment_registry.id) AND id NOT IN ('.implode(',',array_fill(0,count($kept),'?')).')');
             $purge->execute($kept);
             $pdo->exec('UPDATE asset_categories c SET registry_enabled=0 WHERE NOT EXISTS (SELECT 1 FROM equipment_registry e WHERE e.category=c.category_name) AND NOT EXISTS (SELECT 1 FROM registry_source_sheets s WHERE s.category_name=c.category_name)');
+        }
+        if($type==='registry'){
+            $linkedIds=$pdo->query('SELECT DISTINCT registry_id FROM inspection_items WHERE registry_id IS NOT NULL')->fetchAll(PDO::FETCH_COLUMN);
+            foreach($linkedIds as $linkedId)sena_sync_registry_details($pdo,(int)$linkedId);
+        }else{
+            $years=array_unique(array_map(fn($r)=>(int)($r['fiscal_year']??2568),$rows));
+            foreach($years as $year){
+                sena_link_inspection_year($pdo,$year,false);
+                $sync=$pdo->prepare("UPDATE equipment_registry e JOIN inspection_items i ON i.registry_id=e.id SET e.equipment_name=i.item_name,e.equipment_code=i.asset_code,e.category=COALESCE(NULLIF(i.category,''),e.category),e.location=COALESCE(NULLIF(i.location,''),e.location),e.unit_price=COALESCE(i.price,e.unit_price) WHERE i.fiscal_year=?");
+                $sync->execute([$year]);
+            }
         }
         $pdo->commit();
         return ['success'=>true,'inserted'=>$inserted,'updated'=>$updated,'skipped'=>$skipped,'count'=>$inserted,'total'=>count($rows)];

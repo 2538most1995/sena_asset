@@ -1,13 +1,12 @@
 <?php
-// Run against local MySQL: temporary tables shadow the real tables and vanish on disconnect.
+// Run against local MySQL in an empty disposable database.
 require __DIR__.'/../config/database.php';
 require __DIR__.'/../includes/report_service.php';
 if(!$pdo)throw new RuntimeException('Local MySQL is required');
 function expect_location($actual,$expected): void {
     if($actual!==$expected)throw new RuntimeException('Location mismatch: '.json_encode([$actual,$expected],JSON_UNESCAPED_UNICODE));
 }
-$pdo->exec('CREATE TEMPORARY TABLE equipment_registry AS SELECT * FROM equipment_registry WHERE 0');
-$pdo->exec('CREATE TEMPORARY TABLE inspection_items AS SELECT * FROM inspection_items WHERE 0');
+require __DIR__.'/mysql_fixture.php';sena_test_database($pdo,$host);
 $registry=$pdo->prepare('INSERT INTO equipment_registry(id,equipment_code,equipment_name,location) VALUES(?,?,?,?)');
 foreach([[1,'A-1/1','Camera','Library'],[2,'B-1','Desk','Ban Phaen'],[3,'B-1','Desk','Ban Phaen'],
          [4,'C-1','Chair','Room 1'],[5,'C-1','Chair','Room 2'],[6,'D-1','Fan','Room 3'],[7,'D-1','Fan',''],

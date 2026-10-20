@@ -5,6 +5,8 @@ $page_title = 'แดชบอร์ดภาพรวม';
 $page_subtitle = 'ภาพรวมข้อมูลครุภัณฑ์ของสำนักงานส่งเสริมการเรียนรู้ อำเภอเสนา';
 
 require_once __DIR__ . '/config/database.php';
+require_once __DIR__.'/config/auth.php';require_login();
+require_once __DIR__.'/includes/asset_link_service.php';
 
 $settings_file = __DIR__ . '/config/settings.json';
 $app_settings = file_exists($settings_file) ? (json_decode(file_get_contents($settings_file), true) ?: []) : [];
@@ -21,7 +23,9 @@ try {
         $stmt_years = $pdo->query("SELECT DISTINCT fiscal_year FROM inspection_items WHERE fiscal_year IS NOT NULL ORDER BY fiscal_year DESC");
         $existing_years = $stmt_years->fetchAll(PDO::FETCH_COLUMN);
 
-        $master_equipment_count = (int)$pdo->query("SELECT COUNT(*) FROM equipment_registry")->fetchColumn();
+        $dashboardYear=max(2500,min(2700,(int)($_GET['year']??$default_year)));
+        sena_link_inspection_year($pdo,$dashboardYear);
+        $master_equipment_count = (int)$pdo->query('SELECT COUNT(*) FROM '.sena_registry_source_sql($dashboardYear))->fetchColumn();
     }
 } catch (\Throwable $e) {}
 

@@ -7,6 +7,11 @@ $page_subtitle = 'ค้นหา ดูรายละเอียด และ
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/includes/pagination.php';
 require_once __DIR__ . '/includes/image_helper.php';
+require_once __DIR__.'/config/auth.php';require_login();
+require_once __DIR__.'/includes/asset_link_service.php';
+$registry_year=max(2500,min(2700,(int)($_POST['fiscal_year']??$_GET['year']??2568)));
+sena_link_inspection_year($pdo,$registry_year);
+$registry_source=($_GET['view']??'')==='all'?'equipment_registry':sena_registry_source_sql($registry_year);
 
 $flash_message = '';
 $flash_type = 'success';
@@ -19,7 +24,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
         $name = trim($_POST['equipment_name'] ?? '');
         $code = trim($_POST['equipment_code'] ?? '');
         $cat = trim($_POST['category'] ?? 'ครุภัณฑ์ทั่วไป');
-        $loc = trim($_POST['location'] ?? 'สกร.อำเภอเสนา');
+        $loc = trim($_POST['location'] ?? '');
         $price = ($_POST['unit_price'] ?? '') === '' ? null : (float)$_POST['unit_price'];
         $method = trim($_POST['acquisition_method'] ?? 'งปม.');
         $asset_type=trim($_POST['asset_type']??'');
@@ -29,21 +34,30 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
         $date = trim($_POST['acquisition_date'] ?? date('Y-m-d'));
 
         // Handle uploaded image if present
-        $uploaded_img = null;
-        if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+        $uploaded_img = null;$upload_failed=false;
+        if (isset($_FILES['image']) && $_FILES['image']['error'] !== UPLOAD_ERR_NO_FILE) {
             $img_res = processAndSaveEquipmentImage($_FILES['image']);
             if ($img_res['success']) {
                 $uploaded_img = $img_res['url'];
+            }else{
+                $upload_failed=true;$flash_message=$img_res['error'];$flash_type='error';
             }
         }
 
-        if ($name !== '') {
+        if ($name !== '' && !$upload_failed) {
             try {
+                $pdo->beginTransaction();
                 $stmt = $pdo->prepare("INSERT INTO equipment_registry (asset_type, category, equipment_name, equipment_code, brand_description, unit_price, acquisition_method, location, remarks, acquisition_date, status, image_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->execute([$asset_type, $cat, $name, $code, $brand, $price, $method, $loc, $remarks, $date, $status, $uploaded_img]);
+                $new_registry_id=(int)$pdo->lastInsertId();
+                sena_attach_registry_to_year($pdo,$new_registry_id,$registry_year);
+                sena_registry_status_to_year($pdo,$new_registry_id,$registry_year,$status);
+                $pdo->commit();
 
                 $flash_message = "เพิ่มครุภัณฑ์ '$name' เข้าสู่ระบบเรียบร้อยแล้ว";
             } catch (\Throwable $e) {
+                if($pdo->inTransaction())$pdo->rollBack();
+                if(!empty($uploaded_img))@unlink(__DIR__.'/'.$uploaded_img);
                 $flash_message = "เกิดข้อผิดพลาด: " . $e->getMessage();
                 $flash_type = 'error';
             }
@@ -61,16 +75,20 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
         $remarks = trim($_POST['remarks'] ?? '');
 
         // Handle uploaded image if present
-        $uploaded_img = null;
-        if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+        $uploaded_img = null;$upload_failed=false;
+        if (isset($_FILES['image']) && $_FILES['image']['error'] !== UPLOAD_ERR_NO_FILE) {
             $img_res = processAndSaveEquipmentImage($_FILES['image']);
             if ($img_res['success']) {
                 $uploaded_img = $img_res['url'];
+            }else{
+                $upload_failed=true;$flash_message=$img_res['error'];$flash_type='error';
             }
         }
 
-        if ($id > 0) {
+        if ($id > 0 && !$upload_failed) {
             try {
+                $pdo->beginTransaction();
+                $oldStatus=$pdo->prepare('SELECT status FROM '.sena_registry_source_sql($registry_year).' WHERE id=?');$oldStatus->execute([$id]);$previousStatus=$oldStatus->fetchColumn();
                 if ($uploaded_img) {
                     $stmt = $pdo->prepare("UPDATE equipment_registry SET asset_type=?, equipment_name=?, equipment_code=?, category=?, location=?, unit_price=?, status=?, brand_description=?, remarks=?, image_url=? WHERE id=?");
                     $stmt->execute([$asset_type, $name, $code, $cat, $loc, $price, $status, $brand, $remarks, $uploaded_img, $id]);
@@ -79,8 +97,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
                     $stmt->execute([$asset_type, $name, $code, $cat, $loc, $price, $status, $brand, $remarks, $id]);
                 }
 
-                $flash_message = "อัปเดตข้อมูลครุภัณฑ์เรียบร้อยแล้ว";
+                sena_sync_registry_details($pdo,$id);
+                if($previousStatus!==false && $previousStatus!==$status)sena_registry_status_to_year($pdo,$id,$registry_year,$status);
+                $pdo->commit();
+                $flash_message = 'อัปเดตข้อมูลและรูปในทะเบียนกับบัญชีตรวจเรียบร้อยแล้ว';
             } catch (\Throwable $e) {
+                if($pdo->inTransaction())$pdo->rollBack();
+                if(!empty($uploaded_img))@unlink(__DIR__.'/'.$uploaded_img);
                 $flash_message = "เกิดข้อผิดพลาด: " . $e->getMessage();
                 $flash_type = 'error';
             }
@@ -89,10 +112,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
         $id = (int)($_POST['id'] ?? 0);
         if ($id > 0) {
             try {
+                $linked=$pdo->prepare('SELECT COUNT(*) FROM inspection_items WHERE registry_id=?');$linked->execute([$id]);
+                if($linked->fetchColumn())throw new RuntimeException('รายการนี้เชื่อมกับบัญชีตรวจ กรุณานำออกจากบัญชีปีที่ต้องการก่อน');
                 $stmt = $pdo->prepare("DELETE FROM equipment_registry WHERE id=?");
                 $stmt->execute([$id]);
                 $flash_message = "ลบรายการครุภัณฑ์ออกจากทะเบียนเรียบร้อยแล้ว";
             } catch (\Throwable $e) {
+                if($pdo->inTransaction())$pdo->rollBack();
+                if(!empty($uploaded_img))@unlink(__DIR__.'/'.$uploaded_img);
                 $flash_message = "เกิดข้อผิดพลาด: " . $e->getMessage();
                 $flash_type = 'error';
             }
@@ -111,6 +138,7 @@ $offset = ($page - 1) * $per_page;
 
 $where = ["1=1"];
 $params = [];
+if((int)($_GET['registry_id']??0)>0){$where[]='id=?';$params[]=(int)$_GET['registry_id'];}
 
 if ($search !== '') {
     $where[] = "(equipment_name LIKE ? OR equipment_code LIKE ? OR location LIKE ?)";
@@ -122,9 +150,10 @@ if ($filter_cat !== '' && $filter_cat !== 'ทั้งหมด') {
     $where[] = "category = ?";
     $params[] = $filter_cat;
 }
-if (in_array($filter_status,['active','damaged','degraded','disposed','unused','unverified'],true)) {
-    $where[] = 'status = ?';
-    $params[] = $filter_status;
+if($registry_source!=='equipment_registry'){
+    if($statusCondition=sena_linked_status_filter($filter_status))$where[]=$statusCondition;
+}elseif(in_array($filter_status,['active','damaged','degraded','disposed','unused','unverified'],true)){
+    $where[]='status=?';$params[]=$filter_status;
 }
 if ($filter_loc !== '' && $filter_loc !== 'ทั้งหมด') {
     $where[] = "location = ?";
@@ -137,22 +166,27 @@ try {
     if (!$pdo) {
         throw new \Exception("Database connection not available");
     }
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM equipment_registry WHERE $where_sql");
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM $registry_source WHERE $where_sql");
     $stmt->execute($params);
     $total_filtered = (int)$stmt->fetchColumn();
     $paging=sena_page_state($total_filtered,$per_page,$_GET['page']??1);
     $page=$paging['page'];$offset=$paging['offset'];
 
-    $stmt = $pdo->prepare("SELECT id,category,asset_type,equipment_name,equipment_code,brand_description,serial_number,unit_price,acquisition_method,document_number,location,receipt_evidence,change_details,change_document,remarks,acquisition_date,acquisition_date_text,status,image_url,source_file,source_sheet,source_row,source_row_end,source_notes FROM equipment_registry WHERE $where_sql ORDER BY id ASC LIMIT $per_page OFFSET $offset");
+    $registryOrder=$registry_source==='equipment_registry'?'id ASC':'inspection_item_number ASC,id ASC';
+    $annualColumns=$registry_source==='equipment_registry'?'':',inspection_status_label,inspection_item_number';
+    $stmt = $pdo->prepare("SELECT id,category,asset_type,equipment_name,equipment_code,brand_description,serial_number,unit_price,acquisition_method,document_number,location,receipt_evidence,change_details,change_document,remarks,acquisition_date,acquisition_date_text,status,image_url,source_file,source_sheet,source_row,source_row_end,source_notes $annualColumns FROM $registry_source WHERE $where_sql ORDER BY $registryOrder LIMIT $per_page OFFSET $offset");
     $stmt->execute($params);
     $items = $stmt->fetchAll();
 
     // Stats
-    $s=$pdo->query("SELECT COUNT(*) total,COALESCE(SUM(status='active'),0) active,COALESCE(SUM(status='damaged'),0) damaged,COALESCE(SUM(status='degraded'),0) degraded FROM equipment_registry")->fetch(PDO::FETCH_ASSOC);
+    $s=$pdo->query("SELECT COUNT(*) total,COALESCE(SUM(status='active'),0) active,COALESCE(SUM(status='damaged'),0) damaged,COALESCE(SUM(status='degraded'),0) degraded FROM $registry_source")->fetch(PDO::FETCH_ASSOC);
+    if($registry_source!=='equipment_registry'){
+        $stats=$pdo->prepare('SELECT COUNT(*) total,COALESCE(SUM(status_usable),0) active,COALESCE(SUM(status_damaged),0) damaged,COALESCE(SUM(status_degraded),0) degraded FROM inspection_items WHERE fiscal_year=?');$stats->execute([$registry_year]);$s=$stats->fetch(PDO::FETCH_ASSOC);
+    }
     $total_all=(int)$s['total'];$stat_active=(int)$s['active'];$stat_damaged=(int)$s['damaged'];$stat_degraded=(int)$s['degraded'];
 
-    $categories = $pdo->query("SELECT category_name FROM asset_categories WHERE registry_enabled=1 UNION SELECT DISTINCT category FROM equipment_registry WHERE category IS NOT NULL AND category != '' ORDER BY 1")->fetchAll(PDO::FETCH_COLUMN);
-    $locations = $pdo->query("SELECT DISTINCT location FROM equipment_registry WHERE location IS NOT NULL AND location != '' ORDER BY location ASC")->fetchAll(PDO::FETCH_COLUMN);
+    $categories = $pdo->query("SELECT category_name FROM asset_categories WHERE registry_enabled=1 UNION SELECT DISTINCT category FROM $registry_source WHERE category IS NOT NULL AND category != '' ORDER BY 1")->fetchAll(PDO::FETCH_COLUMN);
+    $locations = $pdo->query("SELECT DISTINCT location FROM $registry_source WHERE location IS NOT NULL AND location != '' ORDER BY location ASC")->fetchAll(PDO::FETCH_COLUMN);
 
 } catch (\Throwable $e) {
     $items = [];
@@ -179,6 +213,7 @@ function getCategoryIcon($cat) {
 
 include __DIR__ . '/includes/header.php';
 ?>
+<p class="text-sm text-slate-600">ทะเบียนที่เชื่อมกับบัญชีตรวจปี <?= $registry_year ?> · เพิ่มรายการและรูปแล้วแสดงทั้งสองหน้า <a class="text-indigo-700 underline" href="equipment.php?view=all&amp;year=<?= $registry_year ?>">ดูทะเบียนเดิมทั้งหมด</a> · <a class="text-indigo-700 underline" href="equipment.php?year=<?= $registry_year ?>">กลับทะเบียนตามบัญชีตรวจ</a></p>
 
 <?php if ($flash_message): ?>
 <div class="p-4 rounded-xl <?= $flash_type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800' ?> border text-xs flex items-center justify-between shadow-2xs">
@@ -257,7 +292,7 @@ include __DIR__ . '/includes/header.php';
 
 <!-- 2. SEARCH & FILTER TOOLBAR -->
 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs space-y-3">
-    <form method="GET" action="equipment.php" class="sena-filter-grid"><label class="sena-filter-field sena-filter-wide"><span class="sena-filter-label">ค้นหาครุภัณฑ์</span>
+    <form method="GET" action="equipment.php" class="sena-filter-grid"><?php if(($_GET['view']??'')==='all'):?><input type="hidden" name="view" value="all"><?php endif;?><label class="sena-filter-field"><span class="sena-filter-label">ปีบัญชีตรวจ</span><select name="year" class="sena-filter-control"><?php foreach($pdo->query("SELECT DISTINCT fiscal_year FROM inspection_items ORDER BY fiscal_year DESC")->fetchAll(PDO::FETCH_COLUMN) as $y):?><option value="<?= (int)$y ?>" <?=$registry_year===(int)$y?'selected':''?>>พ.ศ. <?= (int)$y ?></option><?php endforeach;?></select></label><label class="sena-filter-field sena-filter-wide"><span class="sena-filter-label">ค้นหาครุภัณฑ์</span>
 <input type="search" name="search" value="<?= htmlspecialchars($search) ?>" placeholder="รหัสครุภัณฑ์ ชื่อรายการ หรือผู้รับผิดชอบ" class="sena-filter-control">
 </label>
         <label class="sena-filter-field"><span class="sena-filter-label">หมวดทะเบียน</span>
@@ -273,6 +308,7 @@ include __DIR__ . '/includes/header.php';
                 <option value="">ทุกสถานะ</option>
                 <option value="unverified" <?= ($filter_status??'') === 'unverified' ? 'selected' : '' ?>>ยังไม่ยืนยัน</option>
 <option value="active" <?= $filter_status === 'active' ? 'selected' : '' ?>>ใช้ได้ (พร้อมใช้งาน)</option>
+                <option value="lost" <?= $filter_status === 'lost' ? 'selected' : '' ?>>สูญไป</option>
                 <option value="damaged" <?= $filter_status === 'damaged' ? 'selected' : '' ?>>ชำรุด (รอซ่อม)</option>
                 <option value="disposed" <?= $filter_status === 'disposed' ? 'selected' : '' ?>>&#3592;&#3635;&#3627;&#3609;&#3656;&#3634;&#3618;&#3649;&#3621;&#3657;&#3623;</option><option value="unused" <?= $filter_status === 'unused' ? 'selected' : '' ?>>&#3652;&#3617;&#3656;&#3651;&#3594;&#3657;</option>
 <option value="degraded" <?= $filter_status === 'degraded' ? 'selected' : '' ?>>เสื่อมคุณภาพ</option>
@@ -299,12 +335,12 @@ include __DIR__ . '/includes/header.php';
             </button>
 
             <!-- Export Excel Button -->
-            <a href="reports.php?<?=htmlspecialchars(http_build_query(['export'=>'excel','source'=>'registry','cat'=>$filter_cat,'loc'=>$filter_loc,'status'=>$filter_status,'search'=>$search]))?>" class="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium transition-all">
+            <a href="reports.php?<?=htmlspecialchars(http_build_query(['export'=>'excel','source'=>'registry','year'=>$registry_year,'cat'=>$filter_cat,'loc'=>$filter_loc,'status'=>$filter_status,'search'=>$search]))?>" class="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium transition-all">
                 <i class="fa-regular fa-file-excel text-emerald-600"></i>
                 <span>ส่งออก Excel</span>
             </a>
 
-<a href="equipment.php" class="sena-filter-reset">ล้างตัวกรอง</a></div>
+<a href="equipment.php?year=<?= $registry_year ?>" class="sena-filter-reset">ล้างตัวกรอง</a></div>
     </form>
 </div>
 
@@ -333,7 +369,7 @@ include __DIR__ . '/includes/header.php';
 
                 <div class="flex items-center gap-1.5 text-xs text-slate-400">
                     <span class="hidden sm:inline">แสดง</span>
-                    <select onchange="window.location.href='equipment.php?page=1&limit='+this.value+'&search=<?= urlencode($search) ?>&cat=<?= urlencode($filter_cat) ?>&status=<?= urlencode($filter_status) ?>&loc=<?= urlencode($filter_loc) ?>'" class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-slate-600">
+                    <select onchange="window.location.href='equipment.php?year=<?= $registry_year ?>&view=<?= ($_GET['view']??'')==='all'?'all':'linked' ?>&page=1&limit='+this.value+'&search=<?= urlencode($search) ?>&cat=<?= urlencode($filter_cat) ?>&status=<?= urlencode($filter_status) ?>&loc=<?= urlencode($filter_loc) ?>'" class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-slate-600">
                         <?php foreach(sena_page_sizes() as $size): ?><option value="<?=$size?>" <?=$per_page===$size?'selected':''?>><?=number_format($size)?> รายการ</option><?php endforeach; ?>
                     </select>
                 </div>
@@ -372,7 +408,7 @@ include __DIR__ . '/includes/header.php';
                                 <?= htmlspecialchars($it['equipment_code'] ?: '-') ?>
                             </span>
                             <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border <?= $st_badge ?>">
-                                <?= $st_label ?>
+                                <?= htmlspecialchars($it['inspection_status_label']??$st_label) ?>
                             </span>
                         </div>
 
@@ -386,11 +422,11 @@ include __DIR__ . '/includes/header.php';
                             <?php endif; ?>
 
                             <div class="flex-1 min-w-0">
-                                <h4 class="font-bold text-slate-800 text-xs leading-snug line-clamp-2"><?= htmlspecialchars($it['equipment_name']) ?></h4>
+                                <h4 class="font-bold text-slate-800 text-xs leading-snug line-clamp-2"><?= htmlspecialchars($it['equipment_name']) ?></h4><a onclick="event.stopPropagation()" href="inspection.php?year=<?= $registry_year ?>&amp;registry_id=<?= (int)$it['id'] ?>" class="block text-xs text-indigo-700 underline mt-1">เปิดบัญชีตรวจรายการนี้</a>
                                 <p class="text-[10px] text-slate-400 line-clamp-1 mt-0.5"><?= htmlspecialchars($it['brand_description'] ?: '-') ?></p>
                                 <div class="flex items-center gap-1 text-[11px] text-slate-500 mt-1">
                                     <i class="fa-solid fa-location-dot text-rose-500 text-[10px]"></i>
-                                    <span class="truncate"><?= htmlspecialchars($it['location'] ?: 'สกร.อำเภอเสนา') ?></span>
+                                    <span class="truncate"><?= htmlspecialchars($it['location'] ?: 'ยังไม่ระบุสถานที่/ผู้รับผิดชอบ') ?></span>
                                 </div>
                             </div>
                         </div>
@@ -476,7 +512,7 @@ include __DIR__ . '/includes/header.php';
                             </td>
 
                             <td class="py-3 px-3">
-                                <p class="font-medium text-slate-800 line-clamp-1"><?= htmlspecialchars($it['equipment_name']) ?></p>
+                                <p class="font-medium text-slate-800 line-clamp-1"><?= htmlspecialchars($it['equipment_name']) ?></p><a onclick="event.stopPropagation()" href="inspection.php?year=<?= $registry_year ?>&amp;registry_id=<?= (int)$it['id'] ?>" class="block text-xs text-indigo-700 underline mt-1">เปิดบัญชีตรวจรายการนี้</a>
                                 <p class="text-[10px] text-slate-400"><?= htmlspecialchars($it['brand_description'] ?: '-') ?></p>
                             </td>
 
@@ -488,7 +524,7 @@ include __DIR__ . '/includes/header.php';
                             </td>
 
                             <td class="py-3 px-3 whitespace-nowrap text-slate-600">
-                                <?= htmlspecialchars($it['location'] ?: 'สกร.อำเภอเสนา') ?>
+                                <?= htmlspecialchars($it['location'] ?: 'ยังไม่ระบุสถานที่/ผู้รับผิดชอบ') ?>
                             </td>
 
                             <td class="py-3 px-3 text-right font-medium text-slate-700 whitespace-nowrap">
@@ -497,7 +533,7 @@ include __DIR__ . '/includes/header.php';
 
                             <td class="py-3 px-3 text-center whitespace-nowrap">
                                 <span class="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-medium border <?= $st_badge ?>">
-                                    <?= $st_label ?>
+                                    <?= htmlspecialchars($it['inspection_status_label']??$st_label) ?>
                                 </span>
                             </td>
 
@@ -704,7 +740,7 @@ include __DIR__ . '/includes/header.php';
             </button>
         </div>
 
-        <form method="POST" action="equipment.php" enctype="multipart/form-data" class="p-5 space-y-4 text-xs">
+        <form method="POST" action="equipment.php?year=<?= $registry_year ?>" enctype="multipart/form-data" class="p-5 space-y-4 text-xs">
             <input type="hidden" name="action" value="create">
             
             <div class="grid grid-cols-2 gap-3">
@@ -812,7 +848,7 @@ include __DIR__ . '/includes/header.php';
             </button>
         </div>
 
-        <form method="POST" action="equipment.php" enctype="multipart/form-data" class="p-5 space-y-4 text-xs">
+        <form method="POST" action="equipment.php?year=<?= $registry_year ?>" enctype="multipart/form-data" class="p-5 space-y-4 text-xs">
             <input type="hidden" name="action" value="update">
             <input type="hidden" name="id" id="edit-id" value="">
             
@@ -902,7 +938,7 @@ let currentModalData = null;
 // VIEW ITEM IN POPUP MODAL (เมื่อคลิกที่ไอคอนรูปเปิดตา 👁️)
 async function viewItem(data) {
     if (!data) return;
-    try { const response=await fetch('actions/equipment_details.php?id='+encodeURIComponent(data.id));
+    try { const response=await fetch('actions/equipment_details.php?year=<?= $registry_year ?>&view=<?= ($_GET['view']??'')==='all'?'all':'linked' ?>&id='+encodeURIComponent(data.id));
         if(!response.ok) throw new Error('โหลดรายละเอียดไม่สำเร็จ');
         data=await response.json();
     } catch(e) { alert(e.message);return; }
@@ -933,8 +969,8 @@ async function viewItem(data) {
     const locEl = document.getElementById('modal-dt-loc');
     if (locEl) {
         const span = locEl.querySelector('span');
-        if (span) span.textContent = data.location || 'สกร.อำเภอเสนา';
-        else locEl.textContent = data.location || 'สกร.อำเภอเสนา';
+        if (span) span.textContent = data.location || 'ยังไม่ระบุสถานที่/ผู้รับผิดชอบ';
+        else locEl.textContent = data.location || 'ยังไม่ระบุสถานที่/ผู้รับผิดชอบ';
     }
 
     // Status badge
@@ -958,6 +994,7 @@ async function viewItem(data) {
             stEl.className = 'inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200';
             stEl.textContent = '● ใช้ได้ (พร้อมใช้งาน)';
         }
+        if(data.inspection_status_label)stEl.textContent='● '+data.inspection_status_label;
     }
 
     // Dates and acquisition
