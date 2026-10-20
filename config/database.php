@@ -89,7 +89,7 @@ foreach ($dsn_list as $dsn) {
 }
 
 // หากยังไม่สามารถเชื่อมต่อได้ และมีสิทธิ์สร้างฐานข้อมูล (เช่น บน localhost)
-if (!$pdo && in_array($host, ['localhost', '127.0.0.1'])) {
+if (!$pdo && !defined('SENA_PUBLIC_READ_ONLY') && in_array($host, ['localhost', '127.0.0.1'])) {
     try {
         $root_pdo = new PDO("mysql:host={$host};port=8889;charset={$charset}", $username, $password, $options);
         $root_pdo->exec("CREATE DATABASE IF NOT EXISTS `{$dbname}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
@@ -105,7 +105,7 @@ if (!$pdo && $last_error) {
 }
 
 // 4. Auto-migration / ตรวจสอบความสมบูรณ์ของโครงสร้างตาราง
-if ($pdo) {
+if ($pdo && !defined('SENA_PUBLIC_READ_ONLY')) {
     sena_ensure_schema_ready($pdo);
 }
 

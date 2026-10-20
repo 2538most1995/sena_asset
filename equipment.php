@@ -441,7 +441,7 @@ include __DIR__ . '/includes/header.php';
                             <button type="button" onclick="openEditModal(<?= htmlspecialchars(json_encode($it), ENT_QUOTES, 'UTF-8') ?>)" class="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-slate-100 transition-colors" title="แก้ไข">
                                 <i class="fa-solid fa-pen text-xs"></i>
                             </button>
-                            <button type="button" onclick="printQR('<?= htmlspecialchars($it['equipment_code']) ?>', '<?= htmlspecialchars($it['equipment_name']) ?>')" title="พิมพ์ QR" class="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-slate-100 transition-colors">
+                            <button type="button" onclick="printQR(<?= (int)$it['id'] ?>, <?= htmlspecialchars(json_encode($it['equipment_code'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($it['equipment_name'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP), ENT_QUOTES, 'UTF-8') ?>)" title="พิมพ์ QR" class="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-slate-100 transition-colors">
                                 <i class="fa-solid fa-qrcode text-xs"></i>
                             </button>
                         </div>
@@ -545,7 +545,7 @@ include __DIR__ . '/includes/header.php';
                                     <button type="button" onclick="openEditModal(<?= htmlspecialchars(json_encode($it), ENT_QUOTES, 'UTF-8') ?>)" title="แก้ไข" class="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-slate-100 transition-colors">
                                         <i class="fa-solid fa-pen text-xs"></i>
                                     </button>
-                                    <button type="button" onclick="printQR('<?= htmlspecialchars($it['equipment_code']) ?>', '<?= htmlspecialchars($it['equipment_name']) ?>')" title="พิมพ์ QR" class="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-slate-100 transition-colors">
+                                    <button type="button" onclick="printQR(<?= (int)$it['id'] ?>, <?= htmlspecialchars(json_encode($it['equipment_code'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($it['equipment_name'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP), ENT_QUOTES, 'UTF-8') ?>)" title="พิมพ์ QR" class="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-slate-100 transition-colors">
                                         <i class="fa-solid fa-qrcode text-xs"></i>
                                     </button>
                                     <button type="button" onclick="confirmDelete(<?= $it['id'] ?>, '<?= htmlspecialchars($it['equipment_name']) ?>')" title="ลบ" class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-slate-100 transition-colors">
@@ -932,6 +932,7 @@ include __DIR__ . '/includes/header.php';
 </form>
 
 <!-- INTERACTIVE SCRIPTS -->
+<script src="assets/asset-qr.js"></script>
 <script>
 let currentModalData = null;
 
@@ -1043,7 +1044,7 @@ async function viewItem(data) {
     if (photoInput) photoInput.value = '';
 
     // QR Code
-    const code = encodeURIComponent(data.equipment_code || 'SENA');
+    const code = encodeURIComponent(publicAssetURL(data.id));
     const qrImg = document.getElementById('modal-dt-qr-img');
     if (qrImg) qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${code}`;
     const qrLabel = document.getElementById('modal-dt-qr-label');
@@ -1074,8 +1075,8 @@ function editModalItem() {
 
 // Print QR Code from Modal
 function printModalQR() {
-    if (currentModalData && currentModalData.equipment_code) {
-        printQR(currentModalData.equipment_code, currentModalData.equipment_name || '');
+    if (currentModalData && currentModalData.id) {
+        printQR(currentModalData.id, currentModalData.equipment_code || '', currentModalData.equipment_name || '');
     }
 }
 
@@ -1236,8 +1237,17 @@ function confirmDelete(id, name) {
 }
 
 // Print QR Window
-function printQR(code, name) {
+function publicAssetURL(id) {
+    return SenaAssetQR.url(window.location.href, id, <?= (int)$registry_year ?>);
+}
+function printQR(id, code, name) {
+    const qrURL = publicAssetURL(id);
+    const escapeLabel = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    code = escapeLabel(code || 'ยังไม่ระบุรหัส');
+    name = escapeLabel(name);
     const win = window.open('', '_blank', 'width=450,height=450');
+    if (!win) { alert('กรุณาอนุญาตหน้าต่างป๊อปอัปเพื่อพิมพ์ QR Code'); return; }
+    win.opener = null;
     win.document.write(`
         <!DOCTYPE html>
         <html>
@@ -1255,15 +1265,16 @@ function printQR(code, name) {
         </head>
         <body>
             <div class="card">
-                <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(code)}" width="180" height="180" />
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrURL)}" width="180" height="180" />
                 <h3>${code}</h3>
                 <p>${name}</p>
                 <div class="sub">สกร.อำเภอเสนา</div>
             </div>
-            <script>window.print();<\/script>
+            <script>window.addEventListener('load', () => window.print());<\/script>
         </body>
         </html>
     `);
+    win.document.close();
 }
 
 // Escape key closes open modals
