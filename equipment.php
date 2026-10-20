@@ -213,6 +213,9 @@ function getCategoryIcon($cat) {
 
 include __DIR__ . '/includes/header.php';
 ?>
+<link rel="stylesheet" href="assets/equipment-modal.css?v=<?=filemtime(__DIR__.'/assets/equipment-modal.css')?>">
+<?php
+?>
 <p class="text-sm text-slate-600">ทะเบียนที่เชื่อมกับบัญชีตรวจปี <?= $registry_year ?> · เพิ่มรายการและรูปแล้วแสดงทั้งสองหน้า <a class="text-indigo-700 underline" href="equipment.php?view=all&amp;year=<?= $registry_year ?>">ดูทะเบียนเดิมทั้งหมด</a> · <a class="text-indigo-700 underline" href="equipment.php?year=<?= $registry_year ?>">กลับทะเบียนตามบัญชีตรวจ</a></p>
 
 <?php if ($flash_message): ?>
@@ -566,7 +569,7 @@ include __DIR__ . '/includes/header.php';
     </div>
 
 <!-- MODAL: รายละเอียดครุภัณฑ์ (DETAIL POPUP MODAL) -->
-<div id="detail-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-4" onclick="if(event.target === this) closeDetailModal()">
+<div id="detail-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-4">
     <div class="bg-white rounded-3xl w-full max-w-2xl shadow-2xl border border-slate-200 overflow-hidden max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95 duration-150">
         
         <!-- Modal Header -->
@@ -726,25 +729,26 @@ include __DIR__ . '/includes/header.php';
 </div>
 
 <!-- MODAL: เพิ่มครุภัณฑ์ (ADD EQUIPMENT MODAL) -->
-<div id="add-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4" onclick="if(event.target === this) closeAddModal()">
-    <div class="bg-white rounded-2xl w-full max-w-xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+<div id="add-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div role="dialog" aria-modal="true" aria-labelledby="add-modal-title" class="bg-white rounded-2xl w-full max-w-xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
             <div class="flex items-center gap-2">
                 <div class="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center text-sm">
                     <i class="fa-solid fa-plus"></i>
                 </div>
-                <h3 class="font-bold text-slate-800 text-sm">เพิ่มข้อมูลครุภัณฑ์ใหม่</h3>
+                <h3 id="add-modal-title" class="font-bold text-slate-800 text-sm">เพิ่มข้อมูลครุภัณฑ์ใหม่</h3>
             </div>
-            <button onclick="closeAddModal()" class="text-slate-400 hover:text-slate-600">
+            <button type="button" aria-label="ปิดหน้าต่าง" onclick="closeAddModal()" class="text-slate-400 hover:text-slate-600">
                 <i class="fa-solid fa-xmark text-sm"></i>
             </button>
         </div>
 
-        <form method="POST" action="equipment.php?year=<?= $registry_year ?>" enctype="multipart/form-data" class="p-5 space-y-4 text-xs">
+        <form method="POST" action="equipment.php?year=<?= $registry_year ?>" enctype="multipart/form-data" class="equipment-modal-form text-xs">
             <input type="hidden" name="action" value="create">
             
-            <div class="grid grid-cols-2 gap-3">
-                <div class="col-span-2">
+            <div class="equipment-modal-body">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="col-span-1 sm:col-span-2">
                     <label class="block text-slate-600 font-medium mb-1">ชื่อรายการครุภัณฑ์ *</label>
                     <input type="text" name="equipment_name" required placeholder="เช่น เครื่องคอมพิวเตอร์ตั้งโต๊ะ" 
                            class="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500">
@@ -802,26 +806,27 @@ include __DIR__ . '/includes/header.php';
                     </select>
                 </div>
 
-                <div class="col-span-2">
+                <div class="col-span-1 sm:col-span-2">
                     <label class="block text-slate-600 font-medium mb-1">ยี่ห้อ ชนิด ขนาด และลักษณะ</label>
                     <textarea name="brand_description" rows="2" placeholder="ระบุยี่ห้อ ขนาด สเปค หรือลักษณะเฉพาะ" 
                               class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500"></textarea>
                 </div>
 
-                <div class="col-span-2">
+                <div class="col-span-1 sm:col-span-2">
                     <label class="block text-slate-600 font-medium mb-1">รูปภาพครุภัณฑ์ (ย่อและบีบอัดอัตโนมัติ ไม่เกิน 70KB)</label>
                     <input type="file" name="image" accept="image/*" 
                            class="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer">
                 </div>
 
-                <div class="col-span-2">
+                <div class="col-span-1 sm:col-span-2">
                     <label class="block text-slate-600 font-medium mb-1">หมายเหตุ</label>
                     <input type="text" name="remarks" placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)" 
                            class="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500">
                 </div>
             </div>
 
-            <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+            </div>
+            <div class="equipment-modal-footer border-t border-slate-100 flex items-center justify-end gap-2.5">
                 <button type="button" onclick="closeAddModal()" class="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors">
                     ยกเลิก
                 </button>
@@ -834,26 +839,27 @@ include __DIR__ . '/includes/header.php';
 </div>
 
 <!-- MODAL: แก้ไขข้อมูล (EDIT MODAL) -->
-<div id="edit-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4" onclick="if(event.target === this) closeEditModal()">
-    <div class="bg-white rounded-2xl w-full max-w-xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+<div id="edit-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div role="dialog" aria-modal="true" aria-labelledby="edit-modal-title" class="bg-white rounded-2xl w-full max-w-xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
             <div class="flex items-center gap-2">
                 <div class="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center text-sm">
                     <i class="fa-solid fa-pen"></i>
                 </div>
-                <h3 class="font-bold text-slate-800 text-sm">แก้ไขข้อมูลครุภัณฑ์</h3>
+                <h3 id="edit-modal-title" class="font-bold text-slate-800 text-sm">แก้ไขข้อมูลครุภัณฑ์</h3>
             </div>
-            <button onclick="closeEditModal()" class="text-slate-400 hover:text-slate-600">
+            <button type="button" aria-label="ปิดหน้าต่าง" onclick="closeEditModal()" class="text-slate-400 hover:text-slate-600">
                 <i class="fa-solid fa-xmark text-sm"></i>
             </button>
         </div>
 
-        <form method="POST" action="equipment.php?year=<?= $registry_year ?>" enctype="multipart/form-data" class="p-5 space-y-4 text-xs">
+        <form method="POST" action="equipment.php?year=<?= $registry_year ?>" enctype="multipart/form-data" class="equipment-modal-form text-xs">
             <input type="hidden" name="action" value="update">
             <input type="hidden" name="id" id="edit-id" value="">
             
-            <div class="grid grid-cols-2 gap-3">
-                <div class="col-span-2">
+            <div class="equipment-modal-body">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="col-span-1 sm:col-span-2">
                     <label class="block text-slate-600 font-medium mb-1">ชื่อรายการครุภัณฑ์ *</label>
                     <input type="text" name="equipment_name" id="edit-name" required 
                            class="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500">
@@ -894,26 +900,27 @@ include __DIR__ . '/includes/header.php';
                     </select>
                 </div>
 
-                <div class="col-span-2">
+                <div class="col-span-1 sm:col-span-2">
                     <label class="block text-slate-600 font-medium mb-1">ยี่ห้อ ชนิด ขนาด และลักษณะ</label>
                     <textarea name="brand_description" id="edit-brand" rows="2" 
                               class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500"></textarea>
                 </div>
 
-                <div class="col-span-2">
+                <div class="col-span-1 sm:col-span-2">
                     <label class="block text-slate-600 font-medium mb-1">เปลี่ยนรูปภาพครุภัณฑ์ (ย่อและบีบอัดอัตโนมัติ ไม่เกิน 70KB)</label>
                     <input type="file" name="image" accept="image/*" 
                            class="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer">
                 </div>
 
-                <div class="col-span-2">
+                <div class="col-span-1 sm:col-span-2">
                     <label class="block text-slate-600 font-medium mb-1">หมายเหตุ</label>
                     <input type="text" name="remarks" id="edit-remarks" 
                            class="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500">
                 </div>
             </div>
 
-            <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+            </div>
+            <div class="equipment-modal-footer border-t border-slate-100 flex items-center justify-end gap-2.5">
                 <button type="button" onclick="closeEditModal()" class="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors">
                     ยกเลิก
                 </button>
@@ -1198,18 +1205,45 @@ function switchEqView(view) {
     }
 }
 
+// Keep an unsaved form open unless the user explicitly chooses to discard it.
+const equipmentFormSnapshots = new WeakMap();
+function equipmentFormSnapshot(form) {
+    return JSON.stringify(Array.from(new FormData(form), ([key, value]) =>
+        [key, value instanceof File ? (value.name ? [value.name, value.size, value.lastModified] : null) : value]));
+}
+function rememberEquipmentForm(modal) {
+    const form = modal.querySelector('form');
+    equipmentFormSnapshots.set(form, equipmentFormSnapshot(form));
+}
+function closeEquipmentForm(id) {
+    const modal = document.getElementById(id);
+    if (modal.classList.contains('hidden')) return true;
+    const form = modal.querySelector('form');
+    if (equipmentFormSnapshots.get(form) !== equipmentFormSnapshot(form) &&
+        !confirm('มีข้อมูลที่ยังไม่ได้บันทึก ต้องการปิดหน้าต่างและทิ้งการเปลี่ยนแปลงหรือไม่?')) return false;
+    form.reset();
+    modal.classList.add('hidden');
+    document.body.style.overflow = '';
+    return true;
+}
+
 // Modal: Add Equipment
 function openAddModal() {
-    document.getElementById('add-modal').classList.remove('hidden');
+    const modal = document.getElementById('add-modal');
+    if (!modal.classList.contains('hidden')) return;
+    rememberEquipmentForm(modal);
+    modal.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
 }
 function closeAddModal() {
-    document.getElementById('add-modal').classList.add('hidden');
-    document.body.style.overflow = '';
+    return closeEquipmentForm('add-modal');
 }
 
 // Modal: Edit Equipment
 function openEditModal(data) {
+    const modal = document.getElementById('edit-modal');
+    if (!modal.classList.contains('hidden')) return;
+    modal.querySelector('form').reset();
     document.getElementById('edit-id').value = data.id || '';
     document.getElementById('edit-name').value = data.equipment_name || '';
     document.getElementById('edit-code').value = data.equipment_code || '';
@@ -1220,12 +1254,12 @@ function openEditModal(data) {
     document.getElementById('edit-status').value = data.status || 'active';
     document.getElementById('edit-brand').value = data.brand_description || '';
     document.getElementById('edit-remarks').value = data.remarks || '';
-    document.getElementById('edit-modal').classList.remove('hidden');
+    rememberEquipmentForm(modal);
+    modal.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
 }
 function closeEditModal() {
-    document.getElementById('edit-modal').classList.add('hidden');
-    document.body.style.overflow = '';
+    return closeEquipmentForm('edit-modal');
 }
 
 // Confirm Delete
@@ -1286,9 +1320,9 @@ function printQR(id, code, name, location) {
 // Escape key closes open modals
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+        if (!document.getElementById('edit-modal').classList.contains('hidden')) { closeEditModal(); return; }
+        if (!document.getElementById('add-modal').classList.contains('hidden')) { closeAddModal(); return; }
         closeDetailModal();
-        closeAddModal();
-        closeEditModal();
     }
 });
 

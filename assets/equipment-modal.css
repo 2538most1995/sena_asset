@@ -1,0 +1,51 @@
+/* Keep the dialog and its actions inside the viewport, including mobile browser chrome. */
+:is(#add-modal, #edit-modal, #detail-modal) {
+    margin: 0;
+    padding: max(24px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+    overscroll-behavior: contain;
+}
+:is(#add-modal, #edit-modal, #detail-modal) > [role="dialog"],
+#detail-modal > div {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    max-height: calc(100vh - 48px);
+    max-height: calc(100dvh - max(24px, env(safe-area-inset-top)) - max(24px, env(safe-area-inset-bottom)));
+}
+:is(#add-modal, #edit-modal) > [role="dialog"] > div:first-child {
+    flex: 0 0 auto;
+    padding: 20px 24px;
+}
+.equipment-modal-form {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+.equipment-modal-body {
+    padding: 24px;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}
+.equipment-modal-body .grid > div { min-width: 0; }
+.equipment-modal-body :is(input, select, textarea) { max-width: 100%; }
+.equipment-modal-footer {
+    flex: 0 0 auto;
+    padding: 16px 24px;
+    background: #fff;
+}
+@media (max-width: 639px) {
+    :is(#add-modal, #edit-modal, #detail-modal) {
+        padding: max(16px, env(safe-area-inset-top)) 12px max(16px, env(safe-area-inset-bottom));
+    }
+    :is(#add-modal, #edit-modal) > [role="dialog"], #detail-modal > div {
+        max-height: calc(100vh - 32px);
+        max-height: calc(100dvh - max(16px, env(safe-area-inset-top)) - max(16px, env(safe-area-inset-bottom)));
+    }
+    .equipment-modal-body { padding: 20px; }
+    .equipment-modal-body :is(input, select, textarea) { font-size: 16px; }
+    .equipment-modal-footer { padding: 14px 20px; flex-wrap: wrap; }
+    .equipment-modal-footer button { min-height: 44px; }
+}
