@@ -199,6 +199,20 @@ try {
     $locations = [];
 }
 
+// Post back to this filtered list, including the clamped page, rather than just the year.
+$equipment_form_filters = [
+    'year' => $registry_year,
+    'search' => $search,
+    'cat' => $filter_cat,
+    'status' => $filter_status,
+    'loc' => $filter_loc,
+    'limit' => $per_page,
+    'page' => $page,
+];
+if (($_GET['view'] ?? '') === 'all') $equipment_form_filters['view'] = 'all';
+if ((int)($_GET['registry_id'] ?? 0) > 0) $equipment_form_filters['registry_id'] = (int)$_GET['registry_id'];
+$equipment_form_action = 'equipment.php?' . http_build_query($equipment_form_filters, '', '&', PHP_QUERY_RFC3986);
+
 $total_pages = ceil($total_filtered / $per_page);
 if ($total_pages < 1) $total_pages = 1;
 
@@ -743,7 +757,7 @@ include __DIR__ . '/includes/header.php';
             </button>
         </div>
 
-        <form method="POST" action="equipment.php?year=<?= $registry_year ?>" enctype="multipart/form-data" class="equipment-modal-form text-xs">
+        <form method="POST" action="<?= htmlspecialchars($equipment_form_action, ENT_QUOTES, 'UTF-8') ?>" enctype="multipart/form-data" class="equipment-modal-form text-xs">
             <input type="hidden" name="action" value="create">
             
             <div class="equipment-modal-body">
@@ -853,7 +867,7 @@ include __DIR__ . '/includes/header.php';
             </button>
         </div>
 
-        <form method="POST" action="equipment.php?year=<?= $registry_year ?>" enctype="multipart/form-data" class="equipment-modal-form text-xs">
+        <form method="POST" action="<?= htmlspecialchars($equipment_form_action, ENT_QUOTES, 'UTF-8') ?>" enctype="multipart/form-data" class="equipment-modal-form text-xs">
             <input type="hidden" name="action" value="update">
             <input type="hidden" name="id" id="edit-id" value="">
             
@@ -933,7 +947,7 @@ include __DIR__ . '/includes/header.php';
 </div>
 
 <!-- FORM: DELETE SUBMIT -->
-<form id="delete-form" method="POST" action="equipment.php" class="hidden">
+<form id="delete-form" method="POST" action="<?= htmlspecialchars($equipment_form_action, ENT_QUOTES, 'UTF-8') ?>" class="hidden">
     <input type="hidden" name="action" value="delete">
     <input type="hidden" name="id" id="delete-id" value="">
 </form>
